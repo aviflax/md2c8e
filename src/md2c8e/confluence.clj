@@ -1,21 +1,46 @@
 (ns md2c8e.confluence
-  (:require [cognitect.anomalies :as anom]
-            [libpython-clj.require :refer [require-python]]
-            [libpython-clj.python :refer [py.] :as py]
+  (:require [clojure.string :as str]
+            [cognitect.anomalies :as anom]
+            [clj-http.client :as http]
+            [martian.core :as m]
             [md2c8e.markdown :as md])
   (:import [java.io File]))
 
-(require-python 'atlassian)
+(defn- api-root-url
+  [confluence-root-url]
+  (str confluence-root-url
+       (when (not (str/ends-with? api-root-url "/"))
+         "/")
+       "rest/api/"))
+
+(def handlers
+  [{:route-name :content
+    :method :get
+    :path-parts ["content" :id]
+    :path-schema {:id s/Int}
+    :produces ["application/json"]}])
+
+(defn- auth-header-interceptor
+  [username password]
+  {:name ::add-authentication-header
+   :enter (fn [ctx]
+            (assoc-in ctx
+                      [:request :headers "Authorization"]
+                      (http/basic-auth-value [username password])))})
 
 (defn make-client
-  [api-root-url username password]
-  (atlassian/Confluence api-root-url username password))
+  [confluence-root-url username password]
+  (m/bootstrap (api-root-url confluence-root-url)
+               handlers
+               {:interceptors (concat m/default-interceptors
+                                      [(auth-header-interceptor username password)])}))
 
 (defn page-exists?!
   [page-id client]
-  (let [res (py. client :get_page_by_id page-id)]
-    (when-not (and (= (type res) :pyobject)
-                   (get res "id"))
+  (let [res (m/response-for client :content {:id page-id})]
+    (when-not (and (map? res)
+                   (= (get-in res [:body :id]) (str page-id))
+                   (= (get-in res [:body :type]) "page"))
       (throw (ex-info "Page does not exist!" {:page-id page-id :response res})))))
 
 (defn upsert
@@ -35,3 +60,10 @@
                                tmpfile)
            ::response res
            ::page page}))))
+
+
+(comment
+  
+  (page-exists?! 59180266 (make-client "https://confluence.fundingcircle.com/" "architecture_team_automations" "BaVh0gEvywEw5O73l") )
+  
+  )
