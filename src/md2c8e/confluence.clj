@@ -65,27 +65,29 @@
 
 (def ^:private get-page-space
   (memoize
-    (fn [page-id {:keys [::confluence-root-url ::req-opts] :as _client}]
-      (let [res (hc/get (url confluence-root-url :content page-id) req-opts)]
-      ))))
+    (fn [page-id client]
+      (let [res (get-page-by-id page-id client)]
+        (get-in res ["space" "key"] {::anom/category :fault ::response res})))))
 
 (defn upsert
   "If successful, returns the API response, which should include the String key 'id'.
   If unsuccessful, returns an anomaly with the additional key ::response"
-  [{:keys [::id ::title] :as _page} parent-id client]
-  (if (page-exists? id)
-    
-    (if (contains? res "id")
-        res
-        (let [tmpfile (File/createTempFile (.getName (get-in page [::md/source ::md/fp])) ".xhtml")]
-          (spit tmpfile (::body page))
-          {::anom/category :fault
-           ::anom/message (str (or (get res "message")
-                                   "API request failed.")
-                               "\n  XHTML body written to: "
-                               tmpfile)
-           ::response res
-           ::page page}))))
+  [{:keys [::title ::body] :as _page} parent-id client]
+  (let [space-key (get-page-space parent-id client)]
+    (if-let [page (get-page-by-title? title space-key client)]
+      (update-page (get page "id") etc)
+      (create-page space-key parent-id title body client))))
+    ; (if (contains? res "id")
+    ;     res
+    ;     (let [tmpfile (File/createTempFile (.getName (get-in page [::md/source ::md/fp])) ".xhtml")]
+    ;       (spit tmpfile (::body page))
+    ;       {::anom/category :fault
+    ;        ::anom/message (str (or (get res "message")
+    ;                                "API request failed.")
+    ;                            "\n  XHTML body written to: "
+    ;                            tmpfile)
+    ;        ::response res
+    ;        ::page page}))))
 
 (comment
   (def confluence-root-url "CHANGEME")
