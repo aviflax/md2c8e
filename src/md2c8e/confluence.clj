@@ -2,7 +2,7 @@
   (:require [clojure.string :as str]
             [cognitect.anomalies :as anom]
             [hato.client :as hc]
-            [md2c8e.anomalies :refer [anom]]
+            [md2c8e.anomalies :refer [anom fault]]
             [md2c8e.markdown :as md])
   (:import [java.io File]))
 
@@ -50,37 +50,45 @@
 (defn- get-page-by-title
   "Get the page with the supplied title, or nil if no such page is found."
   [title space-key {:keys [::req-opts ::url] :as _client}]
+  (println title space-key _client)
   (let [res (hc/get (url :content)
                     (assoc req-opts :query-params {:spaceKey space-key :title title}))]
     (if (and (= (:status res) 200)
              (<= (count (get-in res [:body "results"])) 1))
       (get-in res [:body "results" 0]) ; will either return the page, if present, or nil
-      {::anom/category :fault
-       ::response res})))
+      (fault ::response res))))
 
 ; (defn- page-exists?
 ;   [title space-key client]
 ;   (let [res (get-page-by-title title space-key client)]
 ;     (not (anom res))))
 
-(def ^:private get-page-space
-  (memoize
-    (fn [page-id client]
-      (let [res (get-page-by-id page-id client)]
-        (get-in res ["space" "key"] {::anom/category :fault ::response res})))))
+(defonce ^{:private true, :doc "Atom containing a map of page IDs to space keys, for caching."}
+  page-id->space-key
+  (atom {}))
+
+(defn- get-page-space
+  [page-id client]
+  (or (get @page-id->space-key page-id)
+      (let [res (get-page-by-id page-id client)] ;; TODO: handle errors!
+        (if-let [key (and (map? res)
+                          (get-in res ["space" "key"]))]
+          (swap! page-id->space-key assoc page-id key)
+          (fault ::response res)))))
 
 (defn- update-page
-  [current-page title body {:keys [::req-opts ::url] :as _client}]
-  (let [id (get current-page "id")]
-    (hc/put
-      (url :content id)
-      (assoc req-opts
-             :content-type :json
-             :form-params {:version {:number (inc (get-in current-page ["version" "number"]))}
-                           :type :page
-                           :title title
-                           :body {:storage {:value body
-                                            :representation :storage}}}))))
+  [{id "id"
+    {vn "number"} "version" :as _current-page} title body {:keys [::req-opts ::url] :as _client}]
+  {:pre [(number? vn)]}
+  (hc/put
+    (url :content id)
+    (assoc req-opts
+           :content-type :json
+           :form-params {:version {:number (inc vn)}
+                         :type :page
+                         :title title
+                         :body {:storage {:value body
+                                          :representation :storage}}})))
 
 (defn- create-page
   [space-key parent-id title body {:keys [::req-opts ::url] :as _client}]
@@ -99,7 +107,7 @@
   don’t know, and we don’t have an id for it.
   If successful, returns a map with [::operation ::result], which should include the String key 'id'.
   If unsuccessful, returns an anomaly with the additional key ::response"
-  [{:keys [::title ::body] :as _page} parent-id client]
+  [{:keys [::title ::body ::md/source] :as _page} parent-id client]
   (let [space-key (get-page-space parent-id client)
         get-res (get-page-by-title title space-key client)]
     (or (anom get-res)
@@ -108,8 +116,15 @@
               op-res (case op
                            :update (update-page page title body client)
                            :create (create-page space-key parent-id title body client))]
-          {::operation op
-           ::result op-res}))))
+          (if-let [err (anom get-res)]
+            (let [tmpfile (File/createTempFile (or (and (::md/fp source)
+                                                        (.getName (::md/fp source)))
+                                                   title)
+                                               ".xhtml")]
+              (spit tmpfile (::body page))
+              (update err ::anom/message #(str % "\n  XHTML body written to: " tmpfile)))
+            {::operation op
+             ::result op-res})))))
 
     ; (if (contains? res "id")
     ;     res
@@ -125,14 +140,17 @@
 
 (comment
   (def confluence-root-url "CHANGEME")
-  (def username "CHANGEME")
-  (def password "CHANGEME")
+  (def username            "CHANGEME")
+  (def password            "CHANGEME")
   (def root-page-id 60489999)
   (def client (make-client confluence-root-url username password))
     
   (page-exists?! root-page-id client)
   
-  (def root-page (get-page-by-id 60489999 client))
+  (def root-page (get-page-by-id root-page-id client))
+  
+  @page-id->space-key
+  (swap! page-id->space-key assoc "foo" "bar")
   
   (create-page (get-in root-page ["space" "key"])
                root-page-id
@@ -144,9 +162,15 @@
   
   (update-page cheese-page
                "What about what cheese?"
-               "The cheese <b>is</b> old and moldy, where is the bathroom?"
+               "The cheese <b>really is</b> old and moldy, where is the bathroom?"
                client)
 
   (get-page-by-title "What about what cheese?" (get-in root-page ["space" "key"]) client)
+  
+  (upsert {::title "What about what cheese?"
+           ::body "The cheese is <b>very</b> old and moldy, where is the bathroom?"
+           ::md/source nil}
+          root-page-id
+          client)
   
   )

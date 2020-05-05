@@ -7,6 +7,8 @@
   (and (::anom/category v) v))
 
 (defn fault
-  [message]
-  {::anom/category :fault
-   ::anom/message message})
+  [first-key first-val & more-kvs]
+  {:pre [(even? (count more-kvs))]}
+  (apply hash-map
+         (concat [::anom/category :fault, first-key first-val]
+                 more-kvs)))
