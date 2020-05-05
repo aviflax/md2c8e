@@ -1,21 +1,45 @@
 (ns md2c8e.confluence
-  (:require [cognitect.anomalies :as anom]
-            [libpython-clj.require :refer [require-python]]
-            [libpython-clj.python :refer [py.] :as py]
+  (:require [clojure.string :as str]
+            [cognitect.anomalies :as anom]
+            [hato.client :as hc]
             [md2c8e.markdown :as md])
   (:import [java.io File]))
 
-(require-python 'atlassian)
+(def req-opts
+  {:accept :json
+   :as :json-string-keys ; coerce response bodies to Clojure data structures (maps/sequences) with Cheshire
+   :connection-timeout 1000
+   :cookie-policy :none ; ignore cookies in responses
+   :decode-cookies false  ; ignore cookies in responses
+   :redirect-strategy :none ; no thanks
+   :socket-timeout 1000
+   :unexceptional-status #{200 204}}) ; consider redirects exceptional
 
 (defn make-client
-  [api-root-url username password]
-  (atlassian/Confluence api-root-url username password))
+  [confluence-root-url username password]
+  {::confluence-root-url confluence-root-url
+   ::client (hc/build-http-client {:connect-timeout 10000
+                                   :redirect-policy :never
+                                   :version :http-1.1
+                                   :user username
+                                   :pass password
+                                   :cookie-policy :none})})
+
+(defn- url
+  [confluence-root first-path-segment & more-path-segments]
+  (apply str (concat [confluence-root
+                      (when-not (str/ends-with? confluence-root "/")
+                        "/")
+                      "rest/api/"
+                      (name first-path-segment)]
+                     (map (comp name str) more-path-segments))))
 
 (defn page-exists?!
   [page-id client]
-  (let [res (py. client :get_page_by_id page-id)]
-    (when-not (and (= (type res) :pyobject)
-                   (get res "id"))
+  (let [res (hc/get (url confluence-root-url :content page-id) opts)]
+    (when-not (and (map? res)
+                   (= (get-in res [:body :id]) (str page-id))
+                   (= (get-in res [:body :type]) "page"))
       (throw (ex-info "Page does not exist!" {:page-id page-id :response res})))))
 
 (defn upsert
