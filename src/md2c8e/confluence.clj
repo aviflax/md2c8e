@@ -48,14 +48,15 @@
                                             :response (::response res)}))))
 
 (defn- get-page-by-title
+  "Get the page with the supplied title, or nil if no such page is found."
   [title space-key {:keys [::req-opts ::url] :as _client}]
   (let [res (hc/get (url :content)
                     (assoc req-opts :query-params {:spaceKey space-key :title title}))]
     (if (and (= (:status res) 200)
-             (= (count (get-in res [:body "results"])) 1))
-     (get-in res [:body "results" 0])
-     {::anom/category :fault
-      ::response res})))
+             (<= (count (get-in res [:body "results"])) 1))
+      (get-in res [:body "results" 0]) ; will either return the page, if present, or nil
+      {::anom/category :fault
+       ::response res})))
 
 ; (defn- page-exists?
 ;   [title space-key client]
@@ -69,7 +70,17 @@
         (get-in res ["space" "key"] {::anom/category :fault ::response res})))))
 
 (defn- update-page
-  [id title body client])
+  [current-page title body {:keys [::req-opts ::url] :as _client}]
+  (let [id (get current-page "id")]
+    (hc/put
+      (url :content id)
+      (assoc req-opts
+             :content-type :json
+             :form-params {:version {:number (inc (get-in current-page ["version" "number"]))}
+                           :type :page
+                           :title title
+                           :body {:storage {:value body
+                                            :representation :storage}}}))))
 
 (defn- create-page
   [space-key parent-id title body {:keys [::req-opts ::url] :as _client}]
@@ -86,13 +97,20 @@
 (defn upsert
   "Useful for when we want to publish a page that may or may not have already been published; we
   don’t know, and we don’t have an id for it.
-  If successful, returns the API response, which should include the String key 'id'.
+  If successful, returns a map with [::operation ::result], which should include the String key 'id'.
   If unsuccessful, returns an anomaly with the additional key ::response"
   [{:keys [::title ::body] :as _page} parent-id client]
-  (let [space-key (get-page-space parent-id client)]
-    (if-let [page (get-page-by-title title space-key client)]
-      (update-page (get page "id") title body client)
-      (create-page space-key parent-id title body client))))
+  (let [space-key (get-page-space parent-id client)
+        get-res (get-page-by-title title space-key client)]
+    (or (anom get-res)
+        (let [page get-res ; now we know it’s a page, or maybe nil — but definitely not an anomaly
+              op (if page :update :create)
+              op-res (case op
+                           :update (update-page page title body client)
+                           :create (create-page space-key parent-id title body client))]
+          {::operation op
+           ::result op-res}))))
+
     ; (if (contains? res "id")
     ;     res
     ;     (let [tmpfile (File/createTempFile (.getName (get-in page [::md/source ::md/fp])) ".xhtml")]
@@ -121,4 +139,14 @@
                "What about the cheese?"
                "The cheese is old and moldy, where is the bathroom?"
                client)
+  
+  (def cheese-page (get-page-by-id 60490891 client))
+  
+  (update-page cheese-page
+               "What about what cheese?"
+               "The cheese <b>is</b> old and moldy, where is the bathroom?"
+               client)
+
+  (get-page-by-title "What about what cheese?" (get-in root-page ["space" "key"]) client)
+  
   )
