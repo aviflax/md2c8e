@@ -2,6 +2,7 @@
   (:require [clojure.string :as str]
             [cognitect.anomalies :as anom]
             [hato.client :as hc]
+            [md2c8e.anomalies :refer [anom?]]
             [md2c8e.markdown :as md])
   (:import [java.io File]))
 
@@ -32,31 +33,59 @@
             (map #(if (keyword? %) (name %) (str %)))
             (str/join "/"))))
 
-(defn page-exists?!
+(defn- get-page-by-id
   [page-id {:keys [::confluence-root-url ::req-opts] :as _client}]
   (let [res (hc/get (url confluence-root-url :content page-id) req-opts)]
-    (when-not (and (map? res)
-                   (= (get-in res [:body "id"]) (str page-id))
-                   (= (get-in res [:body "type"]) "page"))
-      (throw (ex-info "Page does not exist!" {:page-id page-id :response res})))))
+    (if (= (:status res) 200)
+      (:body res)
+      {::anom/category :fault
+       ::response res})))
 
-; (defn upsert
-;   "If successful, returns the API response, which should include the String key 'id'.
-;   If unsuccessful, returns an anomaly with the additional key ::response"
-;   [page parent-id client]
-;   (let [py-res (py. client :update_or_create parent-id (::title page) (::body page))
-;         res (py/->jvm py-res)]
-;     (if (contains? res "id")
-;         res
-;         (let [tmpfile (File/createTempFile (.getName (get-in page [::md/source ::md/fp])) ".xhtml")]
-;           (spit tmpfile (::body page))
-;           {::anom/category :fault
-;            ::anom/message (str (or (get res "message")
-;                                    "API request failed.")
-;                                "\n  XHTML body written to: "
-;                                tmpfile)
-;            ::response res
-;            ::page page}))))
+(defn page-exists?!
+  [page-id client]
+  (let [res (get-page-by-id page-id client)]
+    (when (anom? res)
+      (throw (ex-info "Page does not exist!" {:page-id page-id
+                                              :response (::response res)})))))
+
+(defn- get-page-by-title
+  [title space-key {:keys [::confluence-root-url ::req-opts] :as _client}]
+  (let [res (hc/get (url confluence-root-url :content)
+                    (assoc req-opts :query-params {:spaceKey space-key :title title}))]
+    (if (and (= (:status res) 200)
+             (= (count (get-in res [:body "results"])) 1))
+     (get-in res [:body "results" 0])
+     {::anom/category :fault
+      ::response res})))
+
+(defn- page-exists?
+  [title space-key client]
+  (let [res (get-page-by-title title space-key client)]
+    (not (anom? res))))
+
+(def ^:private get-page-space
+  (memoize
+    (fn [page-id {:keys [::confluence-root-url ::req-opts] :as _client}]
+      (let [res (hc/get (url confluence-root-url :content page-id) req-opts)]
+      ))))
+
+(defn upsert
+  "If successful, returns the API response, which should include the String key 'id'.
+  If unsuccessful, returns an anomaly with the additional key ::response"
+  [{:keys [::id ::title] :as _page} parent-id client]
+  (if (page-exists? id)
+    
+    (if (contains? res "id")
+        res
+        (let [tmpfile (File/createTempFile (.getName (get-in page [::md/source ::md/fp])) ".xhtml")]
+          (spit tmpfile (::body page))
+          {::anom/category :fault
+           ::anom/message (str (or (get res "message")
+                                   "API request failed.")
+                               "\n  XHTML body written to: "
+                               tmpfile)
+           ::response res
+           ::page page}))))
 
 (comment
   (def confluence-root-url "CHANGEME")
