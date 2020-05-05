@@ -2,7 +2,7 @@
   (:require [clojure.string :as str :refer [ends-with? lower-case]]
             [clojure.walk :as walk]
             [cognitect.anomalies :as anom]
-            [md2c8e.anomalies :refer [anom?]]
+            [md2c8e.anomalies :refer [anom]]
             [md2c8e.confluence :as confluence :refer [upsert]]
             [md2c8e.io :as io]
             [md2c8e.markdown :as md]
@@ -147,7 +147,7 @@
    (let [result (upsert page parent-id client)
          page-id (get result "id")
          succeeded? (boolean page-id)]
-     (println (if (anom? result)  "🚨" "✅") title)
+     (println (if (anom result)  "🚨" "✅") title)
      (if (and succeeded? (seq children))
        (doall (mapcat #(publish % page-id client) children))
        (cons result children)))))

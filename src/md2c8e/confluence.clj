@@ -2,7 +2,7 @@
   (:require [clojure.string :as str]
             [cognitect.anomalies :as anom]
             [hato.client :as hc]
-            [md2c8e.anomalies :refer [anom?]]
+            [md2c8e.anomalies :refer [anom]]
             [md2c8e.markdown :as md])
   (:import [java.io File]))
 
@@ -10,9 +10,19 @@
   {:connect-timeout 1000
    :request-timeout 5000})
 
+(defn- api-url
+  [confluence-root-url first-path-segment & more-path-segments]
+  {:pre [(str/ends-with? confluence-root-url "/")]}
+  (str confluence-root-url
+       "rest/api/"
+       (->> (cons first-path-segment more-path-segments)
+            (map #(if (keyword? %) (name %) (str %)))
+            (str/join "/"))))
+
 (defn make-client
   [confluence-root-url username password]
   {::confluence-root-url confluence-root-url
+   ::url (partial api-url (str confluence-root-url (when-not (str/ends-with? confluence-root-url "/") "/")))
    ::req-opts {:http-client (hc/build-http-client {:connect-timeout (:connect-timeout constants)
                                                    :redirect-policy :never
                                                    :version :http-1.1
@@ -23,19 +33,9 @@
                             :pass password}
                :timeout (:request-timeout constants)}})
 
-(defn- url
-  [confluence-root first-path-segment & more-path-segments]
-  (str confluence-root
-       (when-not (str/ends-with? confluence-root "/")
-         "/")
-       "rest/api/"
-       (->> (cons first-path-segment more-path-segments)
-            (map #(if (keyword? %) (name %) (str %)))
-            (str/join "/"))))
-
 (defn- get-page-by-id
-  [page-id {:keys [::confluence-root-url ::req-opts] :as _client}]
-  (let [res (hc/get (url confluence-root-url :content page-id) req-opts)]
+  [page-id {:keys [::req-opts ::url] :as _client}]
+  (let [res (hc/get (url :content page-id) req-opts)]
     (if (= (:status res) 200)
       (:body res)
       {::anom/category :fault
@@ -43,14 +43,13 @@
 
 (defn page-exists?!
   [page-id client]
-  (let [res (get-page-by-id page-id client)]
-    (when (anom? res)
-      (throw (ex-info "Page does not exist!" {:page-id page-id
-                                              :response (::response res)})))))
+  (when-let [res (anom (get-page-by-id page-id client))]
+    (throw (ex-info "Page does not exist!" {:page-id page-id
+                                            :response (::response res)}))))
 
 (defn- get-page-by-title
-  [title space-key {:keys [::confluence-root-url ::req-opts] :as _client}]
-  (let [res (hc/get (url confluence-root-url :content)
+  [title space-key {:keys [::req-opts ::url] :as _client}]
+  (let [res (hc/get (url :content)
                     (assoc req-opts :query-params {:spaceKey space-key :title title}))]
     (if (and (= (:status res) 200)
              (= (count (get-in res [:body "results"])) 1))
@@ -58,10 +57,10 @@
      {::anom/category :fault
       ::response res})))
 
-(defn- page-exists?
-  [title space-key client]
-  (let [res (get-page-by-title title space-key client)]
-    (not (anom? res))))
+; (defn- page-exists?
+;   [title space-key client]
+;   (let [res (get-page-by-title title space-key client)]
+;     (not (anom res))))
 
 (def ^:private get-page-space
   (memoize
@@ -69,13 +68,30 @@
       (let [res (get-page-by-id page-id client)]
         (get-in res ["space" "key"] {::anom/category :fault ::response res})))))
 
+(defn- update-page
+  [id title body client])
+
+(defn- create-page
+  [space-key parent-id title body {:keys [::req-opts ::url] :as _client}]
+  (hc/post (url :content)
+           (assoc req-opts
+                  :content-type :json
+                  :form-params {:type :page
+                                :title title
+                                :space {:key space-key}
+                                :body {:storage {:value body
+                                                 :representation :storage}}
+                                :ancestors [{:type :page :id parent-id}]})))
+
 (defn upsert
-  "If successful, returns the API response, which should include the String key 'id'.
+  "Useful for when we want to publish a page that may or may not have already been published; we
+  don’t know, and we don’t have an id for it.
+  If successful, returns the API response, which should include the String key 'id'.
   If unsuccessful, returns an anomaly with the additional key ::response"
   [{:keys [::title ::body] :as _page} parent-id client]
   (let [space-key (get-page-space parent-id client)]
-    (if-let [page (get-page-by-title? title space-key client)]
-      (update-page (get page "id") etc)
+    (if-let [page (get-page-by-title title space-key client)]
+      (update-page (get page "id") title body client)
       (create-page space-key parent-id title body client))))
     ; (if (contains? res "id")
     ;     res
@@ -93,5 +109,16 @@
   (def confluence-root-url "CHANGEME")
   (def username "CHANGEME")
   (def password "CHANGEME")
+  (def root-page-id 60489999)
+  (def client (make-client confluence-root-url username password))
+    
+  (page-exists?! root-page-id client)
   
-  (page-exists?! 60489999 (make-client confluence-root-url username password)))
+  (def root-page (get-page-by-id 60489999 client))
+  
+  (create-page (get-in root-page ["space" "key"])
+               root-page-id
+               "What about the cheese?"
+               "The cheese is old and moldy, where is the bathroom?"
+               client)
+  )
