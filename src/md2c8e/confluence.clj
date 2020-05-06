@@ -19,20 +19,39 @@
             (map #(if (keyword? %) (name %) (str %)))
             (str/join "/"))))
 
+(defn- ensure-trailing-slash
+  [s]
+  (if (str/ends-with? s "/")
+      s
+      (str s "/")))
+
 (defn make-client
   [confluence-root-url username password]
   {::confluence-root-url confluence-root-url
-   ::url (partial api-url (str confluence-root-url (when-not (str/ends-with? confluence-root-url "/") "/")))
+   ::url (partial api-url (ensure-trailing-slash confluence-root-url))
    ::req-opts {:http-client (hc/build-http-client {:connect-timeout (:connect-timeout constants)
                                                    :redirect-policy :never
                                                    :version :http-1.1
                                                    :cookie-policy :none})
                :accept :json
                :as :json-string-keys
-               :basic-auth {:user username
-                            :pass password}
+               :basic-auth {:user username, :pass password}
+               :coerce :always
                :timeout (:request-timeout constants)
                :throw-exceptions? false}})
+
+(defn- successful?
+  [{status :status :as _response}]
+  (and (number? status)
+       (<= 200 status 206)))
+
+(defn- response->fault
+  "If the response represents an unsuccessful, error, or failed request, wraps it in an
+  ::anom/anomaly and returns it. Otherwise returns nil."
+  [res]
+  (when-not (successful? res)
+    (fault ::response res
+           ::anom/message (get-in res [:body "message"]))))
 
 (defn- get-page-by-id
   "Get the page with the supplied ID, or nil if no such page exists. In any other case, returns an
@@ -42,7 +61,7 @@
     (case (:status res)
       200 (:body res)
       404 nil
-      (fault ::response res))))
+      (response->fault res))))
 
 (defn page-exists?!
   "Returns nil if the page exists; throws an Exception if it does not."
@@ -57,6 +76,7 @@
   (let [res (hc/get (url :content) (assoc req-opts :query-params {:spaceKey space-key
                                                                   :title title
                                                                   :expand "version"}))]
+    
     (if (and (= (:status res) 200)
              (<= (count (get-in res [:body "results"])) 1))
       (get-in res [:body "results" 0]) ; will either return the page, if present, or nil
@@ -82,26 +102,26 @@
    body
    {:keys [::req-opts ::url] :as _client}]
   {:pre [(number? vn)]}
-  (hc/put (url :content id)
-          (assoc req-opts
-                 :content-type :json
-                 :form-params {:version {:number (inc vn)}
-                               :type :page
-                               :title title
-                               :body {:storage {:value body
-                                                :representation :storage}}})))
+  (let [form-params {:version {:number (inc vn)}
+                     :type :page
+                     :title title
+                     :body {:storage {:value body, :representation :storage}}}
+        res (hc/put (url :content id)
+                    (assoc req-opts :content-type :json, :form-params form-params))]
+    (or (response->fault res)
+        (:body res))))
 
 (defn- create-page
   [space-key parent-id title body {:keys [::req-opts ::url] :as _client}]
-  (hc/post (url :content)
-           (assoc req-opts
-                  :content-type :json
-                  :form-params {:type :page
-                                :title title
-                                :space {:key space-key}
-                                :body {:storage {:value body
-                                                 :representation :storage}}
-                                :ancestors [{:type :page :id parent-id}]})))
+  (let [form-params {:type :page
+                     :title title
+                     :space {:key space-key}
+                     :body {:storage {:value body, :representation :storage}}
+                     :ancestors [{:type :page :id parent-id}]}
+        res (hc/post (url :content)
+                     (assoc req-opts :content-type :json, :form-params form-params))]
+     (or (response->fault res)
+         (:body res))))
 
 (defn upsert
   "Useful for when we want to publish a page that may or may not have already been published; we
@@ -118,21 +138,22 @@
               op-res (case op
                            :update (update-page page title body client)
                            :create (create-page space-key parent-id title body client))]
-          (if-let [err (anom get-res)]
+          (if-let [err (anom op-res)]
             (let [tmpfile (File/createTempFile (or (and (::md/fp source)
                                                         (.getName (::md/fp source)))
                                                    title)
                                                ".xhtml")]
               (spit tmpfile (::body page))
-              (update err ::anom/message #(str % "\n  XHTML body written to: " tmpfile)))
+              (update err ::anom/message #(str % " --  XHTML body written to: " tmpfile)))
             {::operation op
-             ::page (:body op-res)})))))
+             ::page op-res})))))
 
 (comment
   (def confluence-root-url "CHANGEME")
   (def username            "CHANGEME")
   (def password            "CHANGEME")
   (def root-page-id 60489999)
+
   (def client (make-client confluence-root-url username password))
 
   (page-exists?! root-page-id client)
@@ -144,8 +165,8 @@
   
   (create-page (get-in root-page ["space" "key"])
                root-page-id
-               "What about the cheese?"
-               "The cheese is old and moldy, where is the bathroom?"
+               "And now for something entirely different... maybe."
+               "Except not really: <b>The cheese may be old and moldy where is the bathroom?</b>"
                client)
   
   (get-page-by-id root-page-id client)
