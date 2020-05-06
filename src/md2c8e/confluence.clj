@@ -59,11 +59,6 @@
       (get-in res [:body "results" 0]) ; will either return the page, if present, or nil
       (fault ::response res))))
 
-; (defn- page-exists?
-;   [title space-key client]
-;   (let [res (get-page-by-title title space-key client)]
-;     (not (anom res))))
-
 (defonce ^{:private true, :doc "Atom containing a map of page IDs to space keys, for caching."}
   page-id->space-key
   (atom {}))
@@ -109,7 +104,8 @@
 (defn upsert
   "Useful for when we want to publish a page that may or may not have already been published; we
   don’t know, and we don’t have an id for it.
-  If successful, returns a map with [::operation ::result], which should include the String key 'id'.
+  If successful, returns a map with [::operation ::page]. ::page is a representation of the page
+  that was updated or created. Therefore it probably contains, among other keys, 'id' and 'version'.
   If unsuccessful, returns an anomaly with the additional key ::response"
   [{:keys [::title ::body ::md/source] :as _page} parent-id client]
   (let [space-key (get-page-space parent-id client)
@@ -128,19 +124,7 @@
               (spit tmpfile (::body page))
               (update err ::anom/message #(str % "\n  XHTML body written to: " tmpfile)))
             {::operation op
-             ::result op-res})))))
-
-    ; (if (contains? res "id")
-    ;     res
-    ;     (let [tmpfile (File/createTempFile (.getName (get-in page [::md/source ::md/fp])) ".xhtml")]
-    ;       (spit tmpfile (::body page))
-    ;       {::anom/category :fault
-    ;        ::anom/message (str (or (get res "message")
-    ;                                "API request failed.")
-    ;                            "\n  XHTML body written to: "
-    ;                            tmpfile)
-    ;        ::response res
-    ;        ::page page}))))
+             ::page (:body op-res)})))))
 
 (comment
   (def confluence-root-url "CHANGEME")
@@ -148,7 +132,7 @@
   (def password            "CHANGEME")
   (def root-page-id 60489999)
   (def client (make-client confluence-root-url username password))
-    
+
   (page-exists?! root-page-id client)
   
   (def root-page (get-page-by-id root-page-id client))
@@ -173,7 +157,7 @@
   
   (time
   (upsert {::title "What about all that cheese?"
-           ::body "Is the cheese very old and moldy? Where is the bathroom?"
+           ::body "The cheese is <i>very</i> old and moldy 🤢 …where is the bathroom?"
            ::md/source nil}
           root-page-id
           client))
