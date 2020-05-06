@@ -128,9 +128,9 @@
   don’t know, and we don’t have an id for it.
   If successful, returns a map with [::operation ::page]. ::page is a representation of the page
   that was updated or created. Therefore it probably contains, among other keys, 'id' and 'version'.
-  If unsuccessful, returns an anomaly with the additional key ::response"
+  If unsuccessful, returns an ::anom/anomaly with the additional key ::response."
   [{:keys [::title ::body ::md/source] :as _page} parent-id client]
-  (let [space-key (get-page-space-key parent-id client)
+  (let [space-key (get-page-space-key parent-id client) ;; TODO: handle errors
         get-res (get-page-by-title title space-key client)]
     (or (anom get-res)
         (let [page get-res ; now we know it’s a page, or maybe nil — but definitely not an anomaly
