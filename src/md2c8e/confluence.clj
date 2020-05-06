@@ -80,7 +80,7 @@
     (if (and (= (:status res) 200)
              (<= (count (get-in res [:body "results"])) 1))
       (get-in res [:body "results" 0]) ; will either return the page, if present, or nil
-      (fault ::response res))))
+      (response->fault res))))
 
 (defonce ^{:private true, :doc "Atom containing a map of page IDs to space keys, for caching."}
   page-id->space-key
@@ -93,7 +93,7 @@
         (if-let [key (and (map? res)
                           (get-in res ["space" "key"]))]
           (swap! page-id->space-key assoc page-id key)
-          (fault ::response res)))))
+          (response->fault res)))))
 
 (defn- update-page
   [{id            "id"
@@ -123,6 +123,14 @@
      (or (response->fault res)
          (:body res))))
 
+(defn- enrich-anom
+  [err source-file title body]
+  (let [tmpfile (File/createTempFile (or (and source-file (.getName source-file))
+                                         title)
+                                     ".xhtml")]
+    (spit tmpfile body)
+    (update err ::anom/message #(str % " --  XHTML body written to: " tmpfile))))
+
 (defn upsert
   "Useful for when we want to publish a page that may or may not have already been published; we
   don’t know, and we don’t have an id for it.
@@ -130,23 +138,20 @@
   that was updated or created. Therefore it probably contains, among other keys, 'id' and 'version'.
   If unsuccessful, returns an ::anom/anomaly with the additional key ::response."
   [{:keys [::title ::body ::md/source] :as _page} parent-id client]
-  (let [space-key (get-page-space-key parent-id client) ;; TODO: handle errors
-        get-res (get-page-by-title title space-key client)]
-    (or (anom get-res)
-        (let [page get-res ; now we know it’s a page, or maybe nil — but definitely not an anomaly
-              op (if page :update :create)
-              op-res (case op
-                           :update (update-page page title body client)
-                           :create (create-page space-key parent-id title body client))]
-          (if-let [err (anom op-res)]
-            (let [tmpfile (File/createTempFile (or (and (::md/fp source)
-                                                        (.getName (::md/fp source)))
-                                                   title)
-                                               ".xhtml")]
-              (spit tmpfile (::body page))
-              (update err ::anom/message #(str % " --  XHTML body written to: " tmpfile)))
-            {::operation op
-             ::page op-res})))))
+  (let [space-key-res (get-page-space-key parent-id client)]
+    (or (anom space-key-res)
+        (let [space-key space-key-res
+              get-res (get-page-by-title title space-key client)]
+          (or (anom get-res)
+              (let [page get-res ; now we know it’s a page, or maybe nil — but definitely not an anomaly
+                    op (if page :update :create)
+                    op-res (case op
+                                 :update (update-page page title body client)
+                                 :create (create-page space-key parent-id title body client))]
+                (if-let [err (anom op-res)]
+                  (enrich-anom err (::md/fp source) title body)
+                  {::operation op
+                   ::page op-res})))))))
 
 (comment
   (def confluence-root-url "CHANGEME")
