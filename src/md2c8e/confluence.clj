@@ -45,6 +45,7 @@
       (fault ::response res))))
 
 (defn page-exists?!
+  "Returns nil if the page exists; throws an Exception if it does not."
   [page-id client]
   (when-let [res (anom (get-page-by-id page-id client))]
     (throw (ex-info "Page does not exist!" {:page-id page-id
@@ -53,10 +54,9 @@
 (defn- get-page-by-title
   "Get the page with the supplied title, or nil if no such page is found."
   [title space-key {:keys [::req-opts ::url] :as _client}]
-  (let [res (hc/get (url :content)
-                    (assoc req-opts :query-params {:spaceKey space-key
-                                                   :title title
-                                                   :expand "version"}))]
+  (let [res (hc/get (url :content) (assoc req-opts :query-params {:spaceKey space-key
+                                                                  :title title
+                                                                  :expand "version"}))]
     (if (and (= (:status res) 200)
              (<= (count (get-in res [:body "results"])) 1))
       (get-in res [:body "results" 0]) ; will either return the page, if present, or nil
@@ -66,10 +66,10 @@
   page-id->space-key
   (atom {}))
 
-(defn- get-page-space
+(defn- get-page-space-key
   [page-id client]
   (or (get @page-id->space-key page-id)
-      (let [res (get-page-by-id page-id client)] ;; TODO: handle errors!
+      (let [res (get-page-by-id page-id client)]
         (if-let [key (and (map? res)
                           (get-in res ["space" "key"]))]
           (swap! page-id->space-key assoc page-id key)
@@ -82,15 +82,14 @@
    body
    {:keys [::req-opts ::url] :as _client}]
   {:pre [(number? vn)]}
-  (hc/put
-    (url :content id)
-    (assoc req-opts
-           :content-type :json
-           :form-params {:version {:number (inc vn)}
-                         :type :page
-                         :title title
-                         :body {:storage {:value body
-                                          :representation :storage}}})))
+  (hc/put (url :content id)
+          (assoc req-opts
+                 :content-type :json
+                 :form-params {:version {:number (inc vn)}
+                               :type :page
+                               :title title
+                               :body {:storage {:value body
+                                                :representation :storage}}})))
 
 (defn- create-page
   [space-key parent-id title body {:keys [::req-opts ::url] :as _client}]
@@ -111,7 +110,7 @@
   that was updated or created. Therefore it probably contains, among other keys, 'id' and 'version'.
   If unsuccessful, returns an anomaly with the additional key ::response"
   [{:keys [::title ::body ::md/source] :as _page} parent-id client]
-  (let [space-key (get-page-space parent-id client)
+  (let [space-key (get-page-space-key parent-id client)
         get-res (get-page-by-title title space-key client)]
     (or (anom get-res)
         (let [page get-res ; now we know it’s a page, or maybe nil — but definitely not an anomaly
