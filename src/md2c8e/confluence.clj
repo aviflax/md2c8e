@@ -77,8 +77,11 @@
           (fault ::response res)))))
 
 (defn- update-page
-  [{id "id"
-    {vn "number"} "version" :as _current-page} title body {:keys [::req-opts ::url] :as _client}]
+  [{id            "id"
+    {vn "number"} "version" :as _current-page}
+   title
+   body
+   {:keys [::req-opts ::url] :as _client}]
   {:pre [(number? vn)]}
   (hc/put
     (url :content id)
