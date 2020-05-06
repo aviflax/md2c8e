@@ -35,7 +35,7 @@
 
 (defn- get-page-by-id
   [page-id {:keys [::req-opts ::url] :as _client}]
-  (let [res (hc/get (url :content page-id) req-opts)]
+  (let [res (hc/get (url :content page-id) (assoc req-opts :query-params {:expand "version"}))]
     (if (= (:status res) 200)
       (:body res)
       {::anom/category :fault
@@ -50,9 +50,10 @@
 (defn- get-page-by-title
   "Get the page with the supplied title, or nil if no such page is found."
   [title space-key {:keys [::req-opts ::url] :as _client}]
-  (println title space-key _client)
   (let [res (hc/get (url :content)
-                    (assoc req-opts :query-params {:spaceKey space-key :title title}))]
+                    (assoc req-opts :query-params {:spaceKey space-key
+                                                   :title title
+                                                   :expand "version"}))]
     (if (and (= (:status res) 200)
              (<= (count (get-in res [:body "results"])) 1))
       (get-in res [:body "results" 0]) ; will either return the page, if present, or nil
@@ -170,10 +171,11 @@
 
   (get-page-by-title "What about what cheese?" (get-in root-page ["space" "key"]) client)
   
-  (upsert {::title "What about what cheese?"
-           ::body "The cheese is <b>very</b> old and moldy, where is the bathroom?"
+  (time
+  (upsert {::title "What about all that cheese?"
+           ::body "Is the cheese very old and moldy? Where is the bathroom?"
            ::md/source nil}
           root-page-id
-          client)
+          client))
   
   )
