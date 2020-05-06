@@ -145,7 +145,7 @@
   ([{:keys [::confluence/id ::confluence/title ::md/children] :as page} parent-id client]
    {:pre [(nil? id)]}
    (let [result (upsert page parent-id client)
-         page-id (get result "id")
+         page-id (get-in result [::confluence/page :id])
          succeeded? (boolean page-id)]
      (println (if (anom result)  "🚨" "✅") title)
      (if (and succeeded? (seq children))

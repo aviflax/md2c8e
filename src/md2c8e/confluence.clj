@@ -34,7 +34,7 @@
                                                    :version :http-1.1
                                                    :cookie-policy :none})
                :accept :json
-               :as :json-string-keys
+               :as :json
                :basic-auth {:user username, :pass password}
                :coerce :always
                :timeout (:request-timeout constants)
@@ -51,7 +51,7 @@
   [res]
   (when-not (successful? res)
     (fault ::response res
-           ::anom/message (get-in res [:body "message"]))))
+           ::anom/message (get-in res [:body :message]))))
 
 (defn- get-page-by-id
   "Returns the page with the supplied ID, or an ::anom/anomaly.
@@ -59,7 +59,7 @@
     * :not-found — the page simply doesn’t exist
     * :fault — something went wrong"
   [page-id {:keys [::req-opts ::url] :as _client}]
-  (let [res (hc/get (url :content page-id) (assoc req-opts :query-params {:expand "version"}))]
+  (let [res (hc/get (url :content page-id) (assoc req-opts :query-params {:expand "version,space"}))]
     (case (:status res)
       200 (:body res)
       404 {::anom/category :not-found
@@ -79,11 +79,11 @@
   [title space-key {:keys [::req-opts ::url] :as _client}]
   (let [res (hc/get (url :content) (assoc req-opts :query-params {:spaceKey space-key
                                                                   :title title
-                                                                  :expand "version"}))]
-    
+                                                                  :expand "version"}))
+        results (get-in res [:body :results])]
     (if (and (= (:status res) 200)
-             (<= (count (get-in res [:body "results"])) 1))
-      (get-in res [:body "results" 0]) ; will either return the page, if present, or nil
+             (<= (count results) 1))
+      (first results) ; will either return the page, if present, or nil
       (response->fault res))))
 
 (defonce ^{:private true, :doc "Atom containing a map of page IDs to space keys, for caching."}
@@ -94,13 +94,13 @@
   [page-id client]
   (or (get @page-id->space-key page-id)
       (let [res (get-page-by-id page-id client)
-            key (get-in res ["space" "key"])]
+            key (get-in res [:space :key])]
         (or (anom res)
             (swap! page-id->space-key assoc page-id key)))))
 
 (defn- update-page
-  [{id            "id"
-    {vn "number"} "version" :as _current-page}
+  [{id           :id
+    {vn :number} :version :as _current-page}
    title
    body
    {:keys [::req-opts ::url] :as _client}]
