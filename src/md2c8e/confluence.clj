@@ -6,7 +6,7 @@
             [md2c8e.markdown :as md])
   (:import [java.io File]))
 
-(def constants
+(def ^:private constants
   {:connect-timeout 1000
    :request-timeout 5000})
 
@@ -31,15 +31,18 @@
                :as :json-string-keys
                :basic-auth {:user username
                             :pass password}
-               :timeout (:request-timeout constants)}})
+               :timeout (:request-timeout constants)
+               :throw-exceptions? false}})
 
 (defn- get-page-by-id
+  "Get the page with the supplied ID, or nil if no such page exists. In any other case, returns an
+  ::anom/anomaly."
   [page-id {:keys [::req-opts ::url] :as _client}]
   (let [res (hc/get (url :content page-id) (assoc req-opts :query-params {:expand "version"}))]
-    (if (= (:status res) 200)
-      (:body res)
-      {::anom/category :fault
-       ::response res})))
+    (case (:status res)
+      200 (:body res)
+      404 nil
+      (fault ::response res))))
 
 (defn page-exists?!
   [page-id client]
@@ -145,6 +148,8 @@
                "What about the cheese?"
                "The cheese is old and moldy, where is the bathroom?"
                client)
+  
+  (get-page-by-id root-page-id client)
   
   (def cheese-page (get-page-by-id 60490891 client))
   
