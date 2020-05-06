@@ -1,7 +1,7 @@
 (ns md2c8e.cli
   (:require [clojure.java.io :as io :refer [file]]
             [cognitect.anomalies :as anom]
-            [md2c8e.anomalies :refer [anom?]]
+            [md2c8e.anomalies :refer [anom]]
             [md2c8e.confluence :as confluence :refer [make-client page-exists?!]]
             [md2c8e.core :refer [dir->page-tree replace-links publish]]
             [md2c8e.markdown :as md]
@@ -10,7 +10,7 @@
 (defn- summarize
   [ptap source-dir] ; ptap == page-tree-after-publish
   (let [{:keys [:failed :succeeded :skipped]}
-        (group-by #(cond (anom? %)    :failed
+        (group-by #(cond (anom %)     :failed
                          (get % "id") :succeeded ; the results of publish have string keys
                          :else        :skipped)
                   ptap)]
