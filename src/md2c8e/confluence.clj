@@ -54,21 +54,25 @@
            ::anom/message (get-in res [:body "message"]))))
 
 (defn- get-page-by-id
-  "Get the page with the supplied ID, or nil if no such page exists. In any other case, returns an
-  ::anom/anomaly."
+  "Returns the page with the supplied ID, or an ::anom/anomaly.
+   The value of ::anom/category will vary depending on the circumstances:
+    * :not-found — the page simply doesn’t exist
+    * :fault — something went wrong"
   [page-id {:keys [::req-opts ::url] :as _client}]
   (let [res (hc/get (url :content page-id) (assoc req-opts :query-params {:expand "version"}))]
     (case (:status res)
       200 (:body res)
-      404 nil
+      404 {::anom/category :not-found
+           ::anom/message (format "No page with ID %s exists" page-id)
+           ::page-id page-id
+           ::response res}
       (response->fault res))))
 
 (defn page-exists?!
   "Returns nil if the page exists; throws an Exception if it does not."
   [page-id client]
   (when-let [res (anom (get-page-by-id page-id client))]
-    (throw (ex-info "Page does not exist!" {:page-id page-id
-                                            :response (::response res)}))))
+    (throw (ex-info "Page does not exist!" res))))
 
 (defn- get-page-by-title
   "Get the page with the supplied title, or nil if no such page is found."
@@ -89,11 +93,10 @@
 (defn- get-page-space-key
   [page-id client]
   (or (get @page-id->space-key page-id)
-      (let [res (get-page-by-id page-id client)]
-        (if-let [key (and (map? res)
-                          (get-in res ["space" "key"]))]
-          (swap! page-id->space-key assoc page-id key)
-          (response->fault res)))))
+      (let [res (get-page-by-id page-id client)
+            key (get-in res ["space" "key"])]
+        (or (anom res)
+            (swap! page-id->space-key assoc page-id key)))))
 
 (defn- update-page
   [{id            "id"
@@ -123,7 +126,7 @@
      (or (response->fault res)
          (:body res))))
 
-(defn- enrich-anom
+(defn- enrich-err
   [err source-file title body]
   (let [tmpfile (File/createTempFile (or (and source-file (.getName source-file))
                                          title)
@@ -138,20 +141,27 @@
   that was updated or created. Therefore it probably contains, among other keys, 'id' and 'version'.
   If unsuccessful, returns an ::anom/anomaly with the additional key ::response."
   [{:keys [::title ::body ::md/source] :as _page} parent-id client]
-  (let [space-key-res (get-page-space-key parent-id client)]
-    (or (anom space-key-res)
-        (let [space-key space-key-res
-              get-res (get-page-by-title title space-key client)]
-          (or (anom get-res)
-              (let [page get-res ; now we know it’s a page, or maybe nil — but definitely not an anomaly
-                    op (if page :update :create)
-                    op-res (case op
-                                 :update (update-page page title body client)
-                                 :create (create-page space-key parent-id title body client))]
-                (if-let [err (anom op-res)]
-                  (enrich-anom err (::md/fp source) title body)
-                  {::operation op
-                   ::page op-res})))))))
+  (let [space-key-res (get-page-space-key parent-id client)
+        space-key     (when-not (anom space-key-res)
+                        space-key-res)
+        get-res       (when space-key
+                        (get-page-by-title title space-key client))
+        page          (when-not (anom get-res)
+                        get-res)
+        op (cond (or (anom space-key-res) (anom get-res)) :none
+                 page                                     :update
+                 :else                                    :create)
+        op-res (case op
+                     :update (update-page page title body client)
+                     :create (create-page space-key parent-id title body client)
+                     :none)
+        err (or (anom space-key-res)
+                (anom get-res)
+                (anom op-res))]
+    (if err
+      (enrich-err err (::md/fp source) title body)
+      {::operation op
+       ::page op-res})))
 
 (comment
   (def confluence-root-url "CHANGEME")
@@ -185,8 +195,13 @@
 
   (get-page-by-title "What about what cheese?" (get-in root-page ["space" "key"]) client)
   
+  (page-exists?! -1 client)
+  
+  (anom (get-page-by-id -1 client))
+  (get-page-space-key -1 client)
+  
   (time
-  (upsert {::title "What about all that cheese?"
+  (upsert {::title "SO much cheese!"
            ::body "The cheese is <i>very</i> old and moldy 🤢 …where is the bathroom?"
            ::md/source nil}
           root-page-id
