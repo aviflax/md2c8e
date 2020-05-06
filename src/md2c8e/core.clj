@@ -15,7 +15,7 @@
   (let [file-contents (when (.isFile fp) (slurp fp))
         title (md/file->page-title fp file-contents)]
     (println "Loading" title)
-    {::confluence/id nil
+    {::confluence/page-id nil
      ::confluence/title title
      ::confluence/body (when (.isFile fp) (md/prep-content file-contents))
      ::md/source {::md/fp fp ;; fp == file-pointer (can point to dirs too)
@@ -47,7 +47,7 @@
   "Returns a tree of pages as per file->page."
   [^File source-dir root-page-id]
   {:pre [(.isDirectory source-dir)]}
-  {::confluence/id root-page-id
+  {::confluence/page-id root-page-id
    ::md/children (->> (pmap file->page (io/page-files source-dir)) ; using mapv because file->page does IO
                    (map integrate-readmes)
                    (doall))})
@@ -63,7 +63,7 @@
 (defn- page?
   [v]
   (and (map? v)
-       (contains? v ::confluence/id))) ;; maybe use children? or a spec?
+       (contains? v ::confluence/page-id))) ;; maybe use children? or a spec?
 
 (defn- page-seq
   [page-tree]
@@ -139,11 +139,11 @@
   The root page must have an id.
   Returns a (flat) sequence of results. Each result will be either a representation of the remote
   page or an ::anom/anomaly."
-  ([{:keys [::confluence/id ::md/children] :as _root-page} client]
-   {:pre [id]}
-   (doall (mapcat #(publish % id client) children)))
-  ([{:keys [::confluence/id ::confluence/title ::md/children] :as page} parent-id client]
-   {:pre [(nil? id)]}
+  ([{:keys [::confluence/page-id ::md/children] :as _root-page} client]
+   {:pre [page-id]}
+   (doall (mapcat #(publish % page-id client) children)))
+  ([{:keys [::confluence/page-id ::confluence/title ::md/children] :as page} parent-id client]
+   {:pre [(nil? page-id)]}
    (let [result (upsert page parent-id client)
          page-id (get-in result [::confluence/page :id])
          succeeded? (boolean page-id)]
