@@ -1,7 +1,7 @@
 (ns md2c8e.core
   (:require [clojure.string :as str :refer [ends-with? lower-case]]
             [cognitect.anomalies :as anom]
-            [md2c8e.anomalies :refer [anom?]]
+            [md2c8e.anomalies :refer [anom]]
             [md2c8e.confluence :as confluence :refer [upsert]]
             [md2c8e.io :as io]
             [md2c8e.markdown :as md]
@@ -13,7 +13,7 @@
   (let [file-contents (when (.isFile fp) (slurp fp))
         title (md/file->page-title fp file-contents)]
     (println "Loading" title)
-    {::confluence/id nil
+    {::confluence/page-id nil
      ::confluence/title title
      ::confluence/body (when (.isFile fp) (md/prep-content file-contents))
      ::md/source {::md/fp fp ;; fp == file-pointer (can point to dirs too)
@@ -45,7 +45,7 @@
   "Returns a tree of pages as per file->page."
   [^File source-dir root-page-id]
   {:pre [(.isDirectory source-dir)]}
-  {::confluence/id root-page-id
+  {::confluence/page-id root-page-id
    ::md/children (->> (pmap file->page (io/page-files source-dir)) ; using mapv because file->page does IO
                       (mapv integrate-readme))})
 
@@ -64,20 +64,18 @@
   Returns a (flat) sequence of results. Each result will be either a representation of the remote
   page or an ::anom/anomaly."
 
-  ([{:keys [::confluence/id ::md/children] :as _root-page}
-    client]
-   {:pre [id]}
-   (-> (mapcat #(publish % id client) children)
+  ([{:keys [::confluence/page-id ::md/children] :as _root-page} client]
+   {:pre [page-id]}
+   (-> (mapcat #(publish % page-id client) children)
        (doall)))
 
-  ([{:keys [::confluence/id ::confluence/title ::md/children] :as page}
-    parent-id
-    client]
-   {:pre [(nil? id)]}
+  ([{:keys [::confluence/page-id ::confluence/title ::md/children] :as page} parent-id client]
+   {:pre [(nil? page-id)]}
    (let [result (upsert page parent-id client)
-         page-id (get result "id")
+         page-id (get-in result [::confluence/page :id])
          succeeded? (some? page-id)]
-     (println (if (anom? result)  "🚨" "✅") title)
+     (println (if (anom result)  "🚨" "✅") title (when-let [op (::confluence/operation result)]
+                                                     (str "(" (name op) ")")))
      (if (and succeeded? (seq children))
        (doall (mapcat #(publish % page-id client) children))
        [result]))))
