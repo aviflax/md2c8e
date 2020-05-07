@@ -25,6 +25,7 @@
 (defn- markdown->html
   [md]
   (let [res (shell/sh "pandoc" "--from=gfm" "--to=html4" :in md)]
+    ;; TODO: Handle errors! Check the results! :facepalm:
     (:out res)))
 
 (defn prep-content

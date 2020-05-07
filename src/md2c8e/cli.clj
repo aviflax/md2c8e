@@ -3,7 +3,8 @@
             [cognitect.anomalies :as anom]
             [md2c8e.anomalies :refer [anom?]]
             [md2c8e.confluence :as confluence :refer [make-client page-exists?!]]
-            [md2c8e.core :refer [dir->page-tree replace-links publish]]
+            [md2c8e.core :refer [dir->page-tree publish]]
+            [md2c8e.links :refer [replace-links]]
             [md2c8e.markdown :as md]
             [md2c8e.paths :as paths]))
 
