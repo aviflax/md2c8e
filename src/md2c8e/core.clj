@@ -26,8 +26,8 @@
 
 (defn- readme?
   [{:keys [::md/source] :as _page}]
-  (and (::is-file source)
-       (ends-with? (lower-case (::md/fp source)) "readme.md")))
+  (boolean (and (::is-file source)
+                (ends-with? (lower-case (::md/fp source)) "readme.md"))))
 
 (defn- integrate-readme
   "Looks for a child page with the filename README.md (case-insensitive). If found, copies its
