@@ -31,12 +31,16 @@
 
 (defn- integrate-readme
   "Looks for a child page with the filename README.md (case-insensitive). If found, copies its
-  title and content to the parent, then removes that child from the sequence of children."
+  title, content, and source to the parent, replacing those of the parent.
+
+  NB: It’s important to replace the key ::md/source so that link resolution will succeed. You see,
+  when a README.md file contains a link, that link is resolveable only relative to the README file,
+  which is *within* a directory. If we didn’t replace ::md/source, then the link targets in the
+  body wouldn’t change, but the context from which they’re resolved would, to the parent directory
+  of the README. That’s no good; it prevents successful link resolution."
   [page]
   (if-let [readme (find-first readme? (::md/children page))]
-    (-> (update page ::md/children (fn [children]
-                                     (remove readme? children)))
-        (merge (select-keys readme [::c8e/title ::c8e/body]))
+    (-> (merge page (select-keys readme [::c8e/title ::c8e/body ::md/source]))
         (assoc ::md/content-replaced-by readme))
     page))
 
@@ -65,7 +69,8 @@
 
   ([{:keys [::c8e/page-id ::md/children] :as _root-page} client]
    {:pre [page-id]}
-   (->> (mapv #(future (publish % page-id client)) children)
+   (->> (remove readme? children)
+        (mapv #(future (publish % page-id client)))
         (mapv deref)
         (concat))) ;; TODO: maybe specify a timeout and timeout value?
 
@@ -79,6 +84,7 @@
                    (when-let [op (::c8e/operation result)]
                      (str " (" (name op) ")"))))
      (if (and succeeded? (seq children))
-       (->> (mapv #(future (publish % page-id client)) children)
+       (->> (remove readme? children)
+            (mapv #(future (publish % page-id client)))
             (mapv deref))
        [result]))))
