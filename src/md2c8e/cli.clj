@@ -37,11 +37,12 @@
       username
       password :as _args]]
   (let [client (make-client confluence-root-url username password)
+        threads 10 ;; TODO: Make this a command-line option
         _ (page-exists?! root-page-id client)]
     (-> (dir->page-tree (file source-dir) root-page-id)
         (replace-links source-dir)
         ; (validate)
-        (publish client)
+        (publish client threads)
         (summarize source-dir))))
 
 

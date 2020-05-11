@@ -1,6 +1,7 @@
 (ns md2c8e.core
   (:require [clojure.string :as str :refer [ends-with? lower-case]]
             [cognitect.anomalies :as anom]
+            [com.climate.claypoole :as cp]
             [md2c8e.anomalies :refer [anom]]
             [md2c8e.confluence :as c8e :refer [upsert]]
             [md2c8e.io :as io]
@@ -63,12 +64,15 @@
   Returns a (flat) sequence of results. Each result will be either a representation of the remote
   page or an ::anom/anomaly."
 
-  ([{:keys [::c8e/page-id ::md/children] :as _root-page} client]
+  ([{:keys [::c8e/page-id ::md/children] :as _root-page} client threads]
    {:pre [page-id]}
-   (-> (mapcat #(publish % page-id client) children)
-       (doall)))
+   (cp/with-shutdown! [pool (cp/threadpool threads)] ;; TODO: SHUT DOWN THE THREADPOOL
+     ;; TODO: maybe specify a timeout and timeout value?
+     (->> (mapv #(cp/future pool (publish % page-id client pool)) children)
+          (mapv deref)
+          (concat))))
 
-  ([{:keys [::c8e/page-id ::c8e/title ::md/children] :as page} parent-id client]
+  ([{:keys [::c8e/page-id ::c8e/title ::md/children] :as page} parent-id client pool]
    {:pre [(nil? page-id)]}
    (let [result (upsert page parent-id client)
          page-id (get-in result [::c8e/page :id])
@@ -78,5 +82,8 @@
                    (when-let [op (::c8e/operation result)]
                      (str " (" (name op) ")"))))
      (if (and succeeded? (seq children))
-       (doall (mapcat #(publish % page-id client) children))
+       (->> (mapv #(cp/future pool (publish % page-id client pool)) children)
+            (mapv deref)
+            (apply concat)
+            (cons result))
        [result]))))
