@@ -39,7 +39,7 @@
   [html]
   (boolean (re-seq #"href=\".+:.+\"" html)))
 
-(defn- link->confluence
+(defn- link->c8e
   "Given an HTML link such as <a href='url'>text</a> returns a Confluence link such as:
    <ac:link>
    <ri:page ri:content-title='Page Title' />
@@ -68,18 +68,28 @@
                  </ac:plain-text-link-body>
                  </ac:link>" target-title body)))))
 
+(defn- replace-body-links
+  "Replace all the links in the body by applying f to them. f will be invoked once for each link,
+  with the entire text of the link, including the opening and closing tags; in other words
+  `<a href=\"http://zombo.com/\">Zombocom</a>.` The result of f will replace the link in the body;
+  the modified body will then be returned."
+  [body f]
+  ;; If you‘re wondering why this is a top-level function, even though it has only a single form,
+  ;; it’s for testability. This regex is non-trivial and we need to test it thoroughly. I suppose
+  ;; we could have the regex itself in a var, and write tests against that… but this actually feels
+  ;; more idiomatic. (It’s more idiomatic to test functions than regexes… I think?)
+  ;;
+  ;; TODO: try https://github.com/lambdaisland/regal
+  (str/replace body #"<a[^>]+>.*?</a>" f))
+
 (defn replace-links
   [page-tree source-dir]
   (let [lookup (page-titles-by-path page-tree source-dir)
         base-path (paths/path source-dir)]
     (walk/postwalk
       (fn [v]
-        (if-not (and (page? v) (::c8e/body v))
-          v
-          (let [sfp (get-in v [::md/source ::md/fp])]
-            (println "Processing:" (::c8e/title v))
-            (update v ::c8e/body (fn [body]
-                                          (str/replace body
-                                                       #"<a.+</a>"
-                                                       #(link->confluence % sfp base-path lookup)))))))
+        (if-let [sfp (and (page? v) (::c8e/body v) (get-in v [::md/source ::md/fp]))]
+          (update v ::c8e/body #(replace-body-links % (fn [link]
+                                                        (link->c8e link sfp base-path lookup))))
+          v))
       page-tree)))
