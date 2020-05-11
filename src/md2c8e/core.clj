@@ -32,12 +32,16 @@
 
 (defn- integrate-readme
   "Looks for a child page with the filename README.md (case-insensitive). If found, copies its
-  title and content to the parent, then removes that child from the sequence of children."
+  title, content, and source to the parent, replacing those of the parent.
+
+  NB: It’s important to replace the key ::md/source so that link resolution will succeed. You see,
+  when a README.md file contains a link, that link is resolveable only relative to the README file,
+  which is *within* a directory. If we didn’t replace ::md/source, then the link targets in the
+  body wouldn’t change, but the context from which they’re resolved would, to the parent directory
+  of the README. That’s no good; it prevents successful link resolution."
   [page]
   (if-let [readme (find-first readme? (::md/children page))]
-    (-> (update page ::md/children (fn [children]
-                                     (remove readme? children)))
-        (merge (select-keys readme [::c8e/title ::c8e/body]))
+    (-> (merge page (select-keys readme [::c8e/title ::c8e/body ::md/source]))
         (assoc ::md/content-replaced-by readme))
     page))
 
@@ -98,6 +102,7 @@
     (when (or (anom root-page-res)
               (not space-key))
       (throw (ex-info "Root page does not exist, or seems to be malformed." root-page-res)))
-    (->> (cp/pmap threads #(publish-child % space-key page-id client) children)
+    (->> (remove readme? children)
+         (cp/pmap threads #(publish-child % space-key page-id client) children)
          (doall)
          (mapcat identity))))
