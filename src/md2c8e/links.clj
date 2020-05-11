@@ -34,6 +34,11 @@
       (.normalize)
       (->> (.relativize base))))
 
+(defn- has-scheme?
+  "We don’t want to even try to replace links that start with a scheme, such as http, mailto, etc."
+  [html]
+  (boolean (re-seq #"href=\".+:.+\"" html)))
+
 (defn- link->confluence
   "Given an HTML link such as <a href='url'>text</a> returns a Confluence link such as:
    <ac:link>
@@ -48,6 +53,8 @@
    Passes the href values to `resolve-link` to replace the relative URLs with Confluence page
    titles."
   [html sfp base-path lookup]
+  (if (has-scheme? html)
+    html
     (let [href (some-> (re-find #"href=\"(.+)\"" html) second)
           body (some-> (re-find #">(.+)<" html) second)
           resolved (resolve-link href sfp base-path)
@@ -59,7 +66,7 @@
                  <ac:plain-text-link-body>
                   <![CDATA[%s]]>
                  </ac:plain-text-link-body>
-                 </ac:link>" target-title body))))
+                 </ac:link>" target-title body)))))
 
 (defn replace-links
   [page-tree source-dir]
