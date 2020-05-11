@@ -51,7 +51,7 @@
 (defn validate
   "Returns a sequence of errors. For example, if two pages have the same title, the sequence includes an
   anom."
-  [page-tree]
+  [_page-tree]
   (println "TODO: implement validate!!!")
   [{::anom/type :fault
     ::anom/message "TODO: implement validate!!!"}])
