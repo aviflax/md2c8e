@@ -68,19 +68,13 @@
                  </ac:plain-text-link-body>
                  </ac:link>" target-title body)))))
 
+(def link-pattern
+  ;; Might want try https://github.com/lambdaisland/regal at some point
+  #"<a[^>]+>.*?</a>")
+
 (defn- replace-body-links
-  "Replace all the links in the body by applying f to them. f will be invoked once for each link,
-  with the entire text of the link, including the opening and closing tags; in other words
-  `<a href=\"http://zombo.com/\">Zombocom</a>.` The result of f will replace the link in the body;
-  the modified body will then be returned."
-  [body f]
-  ;; If you‘re wondering why this is a top-level function, even though it has only a single form,
-  ;; it’s for testability. This regex is non-trivial and we need to test it thoroughly. I suppose
-  ;; we could have the regex itself in a var, and write tests against that… but this actually feels
-  ;; more idiomatic. (It’s more idiomatic to test functions than regexes… I think?)
-  ;;
-  ;; TODO: try https://github.com/lambdaisland/regal
-  (str/replace body #"<a[^>]+>.*?</a>" f))
+  [body sfp base-path lookup]
+  (str/replace body link-pattern (fn [link] (link->c8e link sfp base-path lookup))))
 
 (defn replace-links
   [page-tree source-dir]
@@ -89,7 +83,6 @@
     (walk/postwalk
       (fn [v]
         (if-let [sfp (and (page? v) (::c8e/body v) (get-in v [::md/source ::md/fp]))]
-          (update v ::c8e/body #(replace-body-links % (fn [link]
-                                                        (link->c8e link sfp base-path lookup))))
+          (update v ::c8e/body #(replace-body-links % sfp base-path lookup))
           v))
       page-tree)))
