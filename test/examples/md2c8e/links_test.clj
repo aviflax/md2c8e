@@ -22,11 +22,21 @@
                     (path "technologies") "Technologies"}]
       (is (= expected (#'links/page-titles-by-path pt source-dir))))))
 
-(deftest test-link->confluence
+(deftest test-link->c8e
   (testing "Links to URLs that specify protocols (schemes) should be passed through untouched."
-    (are [expected given] (= expected (#'links/link->confluence given nil nil nil))
+    (are [expected given] (= expected (#'links/link->c8e given nil nil nil))
       "<a href=\"http://zombo.com\">Zombocom</a>"
       "<a href=\"http://zombo.com\">Zombocom</a>"
 
       "<a href=\"mailto:avi.flax@fundingcircle.com\">Avi Flax</a>"
       "<a href=\"mailto:avi.flax@fundingcircle.com\">Avi Flax</a>")))
+
+(deftest test-replace-body-links
+  (are [expected body f] (= expected (#'links/replace-body-links body f))
+    "foo"
+    "<a href=\"http://zombo.com\">Zombocom</a>"
+    (constantly "foo")
+
+    "foo but also foo"
+    "<a href=\"http://zombo.com\">Zombocom</a> but also <a href=\"https://www.webcrawler.com\">WebCrawler</a>"
+    (constantly "foo")))
