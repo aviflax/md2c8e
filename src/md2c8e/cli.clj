@@ -9,12 +9,12 @@
             [md2c8e.paths :as paths]))
 
 (defn- summarize
-  [ptap source-dir] ; ptap == page-tree-after-publish
+  [results source-dir]
   (let [{:keys [:created :updated :failed :skipped]}
         (group-by #(cond (anom %)              :failed
                          (::confluence/page %) (keyword (str (name (::confluence/operation %)) "d"))
                          :else                 :skipped)
-                  ptap)]
+                  results)]
     (println (format (str "-------------------\n"
                           "✅ Created: %s\n"
                           "✅ Updated: %s\n"
