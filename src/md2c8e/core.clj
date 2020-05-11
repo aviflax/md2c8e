@@ -73,8 +73,10 @@
    (let [result (upsert page parent-id client)
          page-id (get-in result [::confluence/page :id])
          succeeded? (some? page-id)]
-     (println (if (anom result)  "🚨" "✅") title (when-let [op (::confluence/operation result)]
-                                                     (str "(" (name op) ")")))
+     (println (str (if (anom result)  "🚨 " "✅ ")
+                   title
+                   (when-let [op (::confluence/operation result)]
+                     (str " (" (name op) ")"))))
      (if (and succeeded? (seq children))
        (doall (mapcat #(publish % page-id client) children))
        [result]))))
