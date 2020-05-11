@@ -151,24 +151,28 @@
   If successful, returns a map with [::operation ::page]. ::page is a representation of the page
   that was updated or created. Therefore it probably contains, among other keys, 'id' and 'version'.
   If unsuccessful, returns an ::anom/anomaly with the additional key ::response."
-  [{:keys [::title ::body ::md/source] :as _page} parent-id client]
+  [{:keys [::title ::body ::md/source] :as page} parent-id client]
   (let [space-key-res (get-page-space-key parent-id client)
-        space-key     (when-not (anom space-key-res)
-                        space-key-res)
-        get-res       (when space-key
-                        (get-page-by-title title space-key client))
-        page          (when-not (anom get-res)
-                        get-res)
-        op (cond (or (anom space-key-res) (anom get-res)) :none
-                 page                                     :update
-                 :else                                    :create)
+        space-key     (when-not (anom space-key-res) space-key-res)
+        get-res       (when space-key (get-page-by-title title space-key client))
+        existing-page (when-not (anom get-res) get-res)
+        existing-parent-id (get-in existing-page [:ancestors 0 :id])
+        parent-err (when (not= existing-parent-id parent-id)
+                     (fault
+                       ::anom/message "A page exists with the same title but a different parent."
+                       ::page-to-publish page
+                       ::parent-id-specified parent-id
+                       ::existing-page existing-page
+                       ::existing-parent-id existing-parent-id))
+        op (or (anom space-key-res)
+               (anom get-res)
+               (anom parent-err)
+               (if page :update :create))
         op-res (case op
                      :update (update-page page title body client)
                      :create (create-page space-key parent-id title body client)
                      :none)
-        err (or (anom space-key-res)
-                (anom get-res)
-                (anom op-res))]
+        err (or (anom op) (anom op-res))]
     (if err
       (enrich-err err op (::md/fp source) title body)
       {::operation op
