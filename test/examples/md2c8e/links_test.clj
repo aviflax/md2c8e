@@ -21,3 +21,12 @@
           expected {(path "") "Root"
                     (path "technologies") "Technologies"}]
       (is (= expected (#'links/page-titles-by-path pt source-dir))))))
+
+(deftest test-link->confluence
+  (testing "Links to URLs that specify protocols (schemes) should be passed through untouched."
+    (are [expected given] (= expected (#'links/link->confluence given nil nil nil))
+      "<a href=\"http://zombo.com\">Zombocom</a>"
+      "<a href=\"http://zombo.com\">Zombocom</a>"
+
+      "<a href=\"mailto:avi.flax@fundingcircle.com\">Avi Flax</a>"
+      "<a href=\"mailto:avi.flax@fundingcircle.com\">Avi Flax</a>")))
