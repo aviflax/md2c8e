@@ -31,12 +31,11 @@
       "<a href=\"mailto:avi.flax@fundingcircle.com\">Avi Flax</a>"
       "<a href=\"mailto:avi.flax@fundingcircle.com\">Avi Flax</a>")))
 
-(deftest test-replace-body-links
-  (are [expected body f] (= expected (#'links/replace-body-links body f))
-    "foo"
+(deftest test-link-pattern
+  (are [expected given] (= expected (re-seq links/link-pattern given))
+    ["<a href=\"http://zombo.com\">Zombocom</a>"]
     "<a href=\"http://zombo.com\">Zombocom</a>"
-    (constantly "foo")
 
-    "foo but also foo"
-    "<a href=\"http://zombo.com\">Zombocom</a> but also <a href=\"https://www.webcrawler.com\">WebCrawler</a>"
-    (constantly "foo")))
+    ["<a href=\"http://zombo.com\">Zombocom</a>"
+     "<a href=\"https://www.webcrawler.com\">WebCrawler</a>"]
+    "<a href=\"http://zombo.com\">Zombocom</a> and <a href=\"https://www.webcrawler.com\">WebCrawler</a>"))
