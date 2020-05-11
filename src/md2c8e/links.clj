@@ -8,7 +8,7 @@
 (defn- page?
   [v]
   (and (map? v)
-       (contains? v ::confluence/id))) ;; maybe use children? or a spec?
+       (contains? v ::confluence/page-id))) ;; maybe use children? or a spec?
 
 (defn- page-seq
   [page-tree]

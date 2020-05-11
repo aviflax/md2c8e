@@ -1,7 +1,7 @@
 (ns md2c8e.cli
   (:require [clojure.java.io :as io :refer [file]]
             [cognitect.anomalies :as anom]
-            [md2c8e.anomalies :refer [anom?]]
+            [md2c8e.anomalies :refer [anom]]
             [md2c8e.confluence :as confluence :refer [make-client page-exists?!]]
             [md2c8e.core :refer [dir->page-tree publish]]
             [md2c8e.links :refer [replace-links]]
@@ -10,30 +10,33 @@
 
 (defn- summarize
   [ptap source-dir] ; ptap == page-tree-after-publish
-  (let [{:keys [:failed :succeeded :skipped]}
-        (group-by #(cond (anom? %)    :failed
-                         (get % "id") :succeeded ; the results of publish have string keys
-                         :else        :skipped)
+  (let [{:keys [:created :updated :failed :skipped]}
+        (group-by #(cond (anom %)              :failed
+                         (::confluence/page %) (keyword (str (name (::confluence/operation %)) "d"))
+                         :else                 :skipped)
                   ptap)]
     (println (format (str "-------------------\n"
-                          "✅ Succeeded: %s\n"
-                          "🔥 Failed: %s\n"
-                          "⚠️ Skipped: %s")
-                     (count succeeded)
-                     (count failed)
-                     (count skipped)))
+                          "✅ Created: %s\n"
+                          "✅ Updated: %s\n"
+                          "⚠️ Skipped: %s\n"
+                          "🔥 Failed: %s")
+                     (count created)
+                     (count updated)
+                     (count skipped)
+                     (count failed)))
     (doseq [{:keys [::confluence/page ::anom/message]} failed
-            :let [sfrp (paths/relative-path source-dir (get-in page [::md/source ::md/fp]))]] ;; sfrp == source-file-relative-path
+            :let [sfrp ;; source-file-relative-path
+                  (paths/relative-path source-dir (get-in page [::md/source ::md/fp]))]]
       (println "   🚨" (str sfrp) "\n"
                "    " message "\n"))))
 
 (defn -main
   [& [source-dir
       root-page-id
-      api-root-url
+      confluence-root-url ;; The root URL of the Confluence site, not the root of the REST API.
       username
       password :as _args]]
-  (let [client (make-client api-root-url username password)
+  (let [client (make-client confluence-root-url username password)
         _ (page-exists?! root-page-id client)]
     (-> (dir->page-tree (file source-dir) root-page-id)
         (replace-links source-dir)
@@ -45,8 +48,8 @@
 (comment
   (def source-dir "CHANGEME")
   (def root-page-id "CHANGEME")
-  (def api-root-url "CHANGEME")
+  (def confluence-root-url "CHANGEME")
   (def username "CHANGEME")
   (def password "CHANGEME")
 
-  (-main source-dir root-page-id api-root-url username password))
+  (-main source-dir root-page-id confluence-root-url username password))
