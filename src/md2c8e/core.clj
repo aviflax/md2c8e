@@ -65,8 +65,9 @@
 
   ([{:keys [::c8e/page-id ::md/children] :as _root-page} client]
    {:pre [page-id]}
-   (-> (mapcat #(publish % page-id client) children)
-       (doall)))
+   (->> (mapv #(future (publish % page-id client)) children)
+        (mapv deref)
+        (concat))) ;; TODO: maybe specify a timeout and timeout value?
 
   ([{:keys [::c8e/page-id ::c8e/title ::md/children] :as page} parent-id client]
    {:pre [(nil? page-id)]}
@@ -78,5 +79,6 @@
                    (when-let [op (::c8e/operation result)]
                      (str " (" (name op) ")"))))
      (if (and succeeded? (seq children))
-       (doall (mapcat #(publish % page-id client) children))
+       (->> (mapv #(future (publish % page-id client)) children)
+            (mapv deref))
        [result]))))
