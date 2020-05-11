@@ -26,7 +26,7 @@
 
 (defn- readme?
   [{:keys [::md/source] :as _page}]
-  (boolean (and (::is-file source)
+  (boolean (and (::md/is-file source)
                 (ends-with? (lower-case (::md/fp source)) "readme.md"))))
 
 (defn- integrate-readme
@@ -36,9 +36,8 @@
   (if-let [readme (find-first readme? (::md/children page))]
     (-> (update page ::md/children (fn [children]
                                      (remove readme? children)))
-        (merge (select-keys readme [::confluence/title ::confluence/body ::md/source])) ;; TODO: is this brittle?
-        (assoc ::md/replaced-by-readme true
-               ::md/original-source (::md/source page)))
+        (merge (select-keys readme [::confluence/title ::confluence/body]))
+        (assoc ::md/content-replaced-by readme))
     page))
 
 (defn dir->page-tree

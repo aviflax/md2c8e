@@ -38,10 +38,11 @@
     ;; TODO: We should probably also have a corresponding test for links that target the README.md
     ;; directly — we need to have a corresponding entry in our page tree for that as well. This
     ;; is not uncommon when one wants to link to an anchor in a page; a link like
-    ;; repos/readme.md#introduction just looks better than repos/#introduction.
-    (let [p (page "techs"
-                  "/tmp/docs/techs/"
-                  (page "Technologies" "/tmp/docs/techs/README.md"))
-          expected (assoc (page "Technologies" "/tmp/docs/techs")
-                          ::md/replaced-by-readme true)]
-      (is (= expected (#'core/integrate-readme p))))))
+    ;; repos/readme.md#introduction just looks better than repos/#introduction. In other words,
+    ;; we should probably change the behavior of the function under test so that it stops removing
+    ;; the README from the input page’s children.
+    (let [readme (page "Technologies" "/tmp/docs/techs/README.md")
+          pt (page "techs" "/tmp/docs/techs/" readme)
+          expected (assoc (page "Technologies" "/tmp/docs/techs/")
+                          ::md/content-replaced-by readme)]
+      (is (= expected (#'core/integrate-readme pt))))))
