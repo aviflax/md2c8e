@@ -4,9 +4,10 @@
             [md2c8e.anomalies :refer [anom]]
             [md2c8e.confluence :as c8e :refer [make-client page-exists?!]]
             [md2c8e.core :refer [dir->page-tree publish]]
-            [md2c8e.links :refer [replace-links]]
+            [md2c8e.links :as links :refer [replace-links]]
             [md2c8e.markdown :as md]
-            [md2c8e.paths :as paths]))
+            [md2c8e.paths :as paths])
+  (:import [java.util.concurrent Executors]))
 
 (defn- summarize
   [results source-dir]
@@ -37,11 +38,12 @@
       username
       password :as _args]]
   (let [client (make-client confluence-root-url username password)
+        threads 10 ;; TODO: Make this a command-line option
         _ (page-exists?! root-page-id client)]
     (-> (dir->page-tree (file source-dir) root-page-id)
         (replace-links source-dir)
         ; (validate)
-        (publish client)
+        (publish client threads)
         (summarize source-dir))))
 
 
