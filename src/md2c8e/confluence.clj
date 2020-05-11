@@ -7,8 +7,8 @@
   (:import [java.io File]))
 
 (def ^:private constants
-  {:connect-timeout 1000
-   :request-timeout 5000})
+  {:connect-timeout 5000
+   :request-timeout 10000})
 
 (defn- api-url
   [confluence-root-url first-path-segment & more-path-segments]
