@@ -79,7 +79,7 @@
   [title space-key {:keys [::req-opts ::url] :as _client}]
   (let [res (hc/get (url :content) (assoc req-opts :query-params {:spaceKey space-key
                                                                   :title title
-                                                                  :expand "version"}))
+                                                                  :expand "ancestors,version"}))
         results (get-in res [:body :results])]
     (if (and (= (:status res) 200)
              (<= (count results) 1))
@@ -156,26 +156,26 @@
         space-key     (when-not (anom space-key-res) space-key-res)
         get-res       (when space-key (get-page-by-title title space-key client))
         existing-page (when-not (anom get-res) get-res)
-        existing-parent-id (get-in existing-page [:ancestors 0 :id])
-        parent-err (when (not= existing-parent-id parent-id)
+        existing-parent-id (some-> existing-page :ancestors last :id)
+        parent-err (when (and existing-page (not= existing-parent-id parent-id))
                      (fault
                        ::anom/message "A page exists with the same title but a different parent."
                        ::page-to-publish page
                        ::parent-id-specified parent-id
                        ::existing-page existing-page
                        ::existing-parent-id existing-parent-id))
-        op (or (anom space-key-res)
-               (anom get-res)
-               (anom parent-err)
-               (if page :update :create))
+        err (or (anom space-key-res) (anom get-res) (anom parent-err))
+        op (cond err           :none
+                 existing-page :update
+                 :else         :create)
         op-res (case op
-                     :update (update-page page title body client)
+                     :update (update-page existing-page title body client)
                      :create (create-page space-key parent-id title body client)
                      :none)
-        err (or (anom op) (anom op-res))]
+        err (or (anom err) (anom op-res))]
     (if err
       (enrich-err err op (::md/fp source) title body)
       {::operation op
        ::page op-res
-       ::versions {::prior (get-in page [:version :number])
+       ::versions {::prior (get-in existing-page [:version :number])
                    ::new (get-in op-res [:version :number])}})))
