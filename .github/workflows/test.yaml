@@ -9,13 +9,14 @@ jobs:
     runs-on: ubuntu-18.04
 
     # Don’t use the slim variant as it doesn’t have tar so caching fails.
-    container: clojure:openjdk-11-tools-deps-1.10.1.502-stretch
+    # container: clojure:openjdk-11-tools-deps-1.10.1.502-stretch
 
     steps:
     - name: Check out the repo
       uses: actions/checkout@v2
 
     - name: Cache libraries downloaded via Maven
+      id: cache-maven
       uses: actions/cache@v1
       env:
         # The version suffix is used if/when we need to bust the cache manually, in which case we
@@ -34,6 +35,14 @@ jobs:
       with:
         path: ~/.gitlibs
         key: ${{ runner.os }}-${{ github.workflow }}-${{ env.cache-name }}-${{ hashFiles('deps.edn') }}
+
+    - name: Install Clojure with tools.deps
+      if: steps.cache-maven.outputs.cache-hit != 'true'
+      run: |
+        # Steps copy-pasta’d from https://clojure.org/guides/getting_started#_installation_on_linux
+        curl -O https://download.clojure.org/install/linux-install-1.10.1.536.sh
+        chmod +x linux-install-1.10.1.536.sh
+        sudo ./linux-install-1.10.1.536.sh
 
     - name: Run the test suite
       run: bin/kaocha examples
