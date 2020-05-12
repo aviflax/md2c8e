@@ -5,7 +5,7 @@ on: push
 # Each test suite will have its own job so they can run concurrently. (Our test runner, Kaocha,
 # doesn’t currently support concurrency.)
 jobs:
-  Example Tests:
+  examples:
     runs-on: ubuntu-18.04
     container: openjdk-11-tools-deps-1.10.1.502-slim-buster
     steps:
