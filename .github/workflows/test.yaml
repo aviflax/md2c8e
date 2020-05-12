@@ -7,7 +7,10 @@ on: push
 jobs:
   examples:
     runs-on: ubuntu-18.04
-    container: clojure:openjdk-11-tools-deps-1.10.1.502-stretch # don’t use the slim variant as it doesn’t have tar so caching fails
+
+    # Don’t use the slim variant as it doesn’t have tar so caching fails.
+    container: clojure:openjdk-11-tools-deps-1.10.1.502-stretch
+
     steps:
     - uses: actions/checkout@v2
 
