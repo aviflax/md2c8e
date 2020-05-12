@@ -7,7 +7,7 @@ on: push
 jobs:
   examples:
     runs-on: ubuntu-18.04
-    container: openjdk-11-tools-deps-1.10.1.502-slim-buster
+    container: clojure:openjdk-11-tools-deps-1.10.1.502-slim-buster
     steps:
     - uses: actions/checkout@v2
 
