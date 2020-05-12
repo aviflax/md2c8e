@@ -1,0 +1,34 @@
+name: Test
+
+on: push
+
+# Each test suite will have its own job so they can run concurrently. (Our test runner, Kaocha,
+# doesn’t currently support concurrency.)
+jobs:
+  Example Tests:
+    runs-on: ubuntu-18.04
+    container: openjdk-11-tools-deps-1.10.1.502-slim-buster
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Cache libraries downloaded via Maven
+      uses: actions/cache@v1
+      env:
+        # The version suffix is used if/when we need to bust the cache manually, in which case we
+        # increment it.
+        cache-name: cache-maven-libraries-v1
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-${{ github.workflow }}-${{ env.cache-name }}-${{ hashFiles('deps.edn') }}
+
+    - name: Cache libraries downloaded via Git
+      uses: actions/cache@v1
+      env:
+        # The version suffix is used if/when we need to bust the cache manually, in which case we
+        # increment it.
+        cache-name: cache-git-libraries-v1
+      with:
+        path: ~/.gitlibs
+        key: ${{ runner.os }}-${{ github.workflow }}-${{ env.cache-name }}-${{ hashFiles('deps.edn') }}
+
+    - run: bin/kaocha examples
