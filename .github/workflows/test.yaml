@@ -8,8 +8,8 @@ jobs:
   examples:
     runs-on: ubuntu-18.04
 
-    # Don’t use the slim variant as it doesn’t have tar so caching fails.
-    # container: clojure:openjdk-11-tools-deps-1.10.1.502-stretch
+    # I tried using a Docker container but the one I used didn’t work well with the cache action,
+    # and honestly it’s not that hard to install and cache Clojure.
 
     steps:
       - name: Set up Java
@@ -25,6 +25,10 @@ jobs:
       # multiple paths, so we’ll be able to merge all these cache steps into a single step.
       # See https://github.com/actions/cache/pull/212 and
       # https://github.com/actions/cache/issues/288#issuecomment-627478569
+
+      - name: Work around a permissions issue
+        # It seems the cache action can’t create this dir in this path. Maybe this step can.
+        run: mkdir /usr/local/clojure-tools
 
       - name: Cache Clojure CLI Tools
         id: cache-clojure-cli-tools
