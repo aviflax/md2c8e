@@ -9,11 +9,16 @@
             [medley.core :as mc :refer [find-first]])
   (:import [java.io File]))
 
+(defn- print-now
+  [& more]
+  (apply print more)
+  (flush))
+
 (defn- file->page
   [^File fp] ;; fp == file-pointer (can point to dirs too)
   (let [file-contents (when (.isFile fp) (slurp fp))
         title (md/file->page-title fp file-contents)]
-    (println "Loading" title)
+    (print-now ".")
     {::c8e/page-id nil
      ::c8e/title title
      ::c8e/body (when (.isFile fp) (md/prep-content file-contents))
