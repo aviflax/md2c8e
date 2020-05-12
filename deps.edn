@@ -10,7 +10,14 @@
         medley {:git/url "https://github.com/weavejester/medley"
                 :sha "6c79c4cce52b276daa3c2b6eaea78f96904bca56"
                 :tag "1.3.0"}}
+
   :aliases
   {:dev {:jvm-opts ["-XX:-OmitStackTraceInFastThrow"
                     "--illegal-access=deny"
-                    "-Dclojure.server.repl={:port,5555,:accept,clojure.core.server/repl}"]}}}
+                    "-Dclojure.server.repl={:port,5555,:accept,clojure.core.server/repl}"]}
+
+   :test {:extra-paths ["test"]
+          :extra-deps
+          {kaocha {:git/url "https://github.com/lambdaisland/kaocha"
+                   :sha "c97184a30a604da92a86d4207ed7e26b67881e5c"
+                   :tag "v1.0.629"}}}}}

@@ -1,0 +1,7 @@
+#kaocha/v1
+{:tests [{:id         :examples
+          :test-paths ["test/examples"]}
+         {:id         :properties
+          :test-paths ["test/properties"]}
+         {:id         :integration
+          :test-paths ["test/integration"]}]}
