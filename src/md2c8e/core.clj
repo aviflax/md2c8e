@@ -8,11 +8,16 @@
             [medley.core :as mc :refer [find-first]])
   (:import [java.io File]))
 
+(defn- print-now
+  [& more]
+  (apply print more)
+  (flush))
+
 (defn- file->page
   [^File fp] ;; fp == file-pointer (can point to dirs too)
   (let [file-contents (when (.isFile fp) (slurp fp))
         title (md/file->page-title fp file-contents)]
-    (println "Loading" title)
+    (print-now ".")
     {::c8e/page-id nil
      ::c8e/title title
      ::c8e/body (when (.isFile fp) (md/prep-content file-contents))
@@ -25,9 +30,10 @@
                      [])}))
 
 (defn- readme?
-  [{:keys [::md/source] :as _page}]
+  [{:keys [::md/source ::md/content-replaced-by] :as _page}]
   (boolean (and (::md/is-file source)
-                (ends-with? (lower-case (::md/fp source)) "readme.md"))))
+                (ends-with? (lower-case (::md/fp source)) "readme.md")
+                (not content-replaced-by))))
 
 (defn- integrate-readme
   "Looks for a child page with the filename README.md (case-insensitive). If found, copies its
@@ -38,10 +44,11 @@
   which is *within* a directory. If we didn’t replace ::md/source, then the link targets in the
   body wouldn’t change, but the context from which they’re resolved would, to the parent directory
   of the README. That’s no good; it prevents successful link resolution."
-  [page]
-  (if-let [readme (find-first readme? (::md/children page))]
+  [{:keys [::md/children ::md/source] :as page}]
+  (if-let [readme (find-first readme? children)]
     (-> (merge page (select-keys readme [::c8e/title ::c8e/body ::md/source]))
-        (assoc ::md/content-replaced-by readme))
+        (assoc ::md/original-source source
+               ::md/content-replaced-by readme))
     page))
 
 (defn dir->page-tree
@@ -62,17 +69,19 @@
 
 (defn publish
   "Page might have children, which might have children; in other words; it might be a tree. All
-  pages in the tree, if any, will be upserted.
-  The root page must have an id.
+  pages in the tree, if any — except the root — will be upserted.
+  The root page must must already exist and have an id.
   Returns a (flat) sequence of results. Each result will be either a representation of the remote
   page or an ::anom/anomaly."
+
+  ;; TODO: consider specifying a timeout and timeout value when creating the futures.
 
   ([{:keys [::c8e/page-id ::md/children] :as _root-page} client]
    {:pre [page-id]}
    (->> (remove readme? children)
-        (mapv #(future (publish % page-id client)))
+        (map #(future (publish % page-id client)))
         (mapv deref)
-        (concat))) ;; TODO: maybe specify a timeout and timeout value?
+        (apply concat)))
 
   ([{:keys [::c8e/page-id ::c8e/title ::md/children] :as page} parent-id client]
    {:pre [(nil? page-id)]}
@@ -85,6 +94,8 @@
                      (str " (" (name op) ")"))))
      (if (and succeeded? (seq children))
        (->> (remove readme? children)
-            (mapv #(future (publish % page-id client)))
-            (mapv deref))
+            (map #(future (publish % page-id client)))
+            (mapv deref)
+            (apply concat)
+            (cons result))
        [result]))))
