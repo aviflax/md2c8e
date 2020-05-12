@@ -1,0 +1,8 @@
+#!/bin/sh
+
+# Run this from the root of the repo.
+
+# clj-kondo is our main Clojure linter. Docs: https://github.com/borkdude/clj-kondo/
+# If you’re on MacOS you can install it easily via Homebrew: `brew install borkdude/brew/clj-kondo`
+
+clj-kondo --lint .

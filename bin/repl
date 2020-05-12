@@ -1,0 +1,10 @@
+#!/bin/sh
+
+# Run this from the root of the repo.
+
+# This will download libraries, if necessary, then start a REPL.
+# It also starts a Clojure socket REPL on port 5555. (If you run into port conflicts, you/we can
+# change the port specified in deps.edn to `0` — which means “some available port” — and then use
+# `lsof` or some equivalent (e.g. Sloth on MacOS) to discover the port that was chosen.)
+
+clojure -A:dev:test
