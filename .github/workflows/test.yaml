@@ -12,61 +12,61 @@ jobs:
     # container: clojure:openjdk-11-tools-deps-1.10.1.502-stretch
 
     steps:
-    - name: Set up Java
-      uses: actions/setup-java@v1
-      with:
-        java-version: '11.0.7'
-        java-package: jre
+      - name: Set up Java
+        uses: actions/setup-java@v1
+        with:
+          java-version: '11.0.7'
+          java-package: jre
 
-    - name: Check out the repo
-      uses: actions/checkout@v2
+      - name: Check out the repo
+        uses: actions/checkout@v2
 
-    # actions/cache@v2, which should be released in Spring or Summer 2020, will include support for
-    # multiple paths, so we’ll be able to merge all these cache steps into a single step.
-    # See https://github.com/actions/cache/pull/212 and
-    # https://github.com/actions/cache/issues/288#issuecomment-627478569
+      # actions/cache@v2, which should be released in Spring or Summer 2020, will include support for
+      # multiple paths, so we’ll be able to merge all these cache steps into a single step.
+      # See https://github.com/actions/cache/pull/212 and
+      # https://github.com/actions/cache/issues/288#issuecomment-627478569
 
-    - name: Cache Clojure CLI Tools
-      id: cache-clojure-cli-tools
-      uses: actions/cache@v1
-      env:
-        # The version suffix is used if/when we need to bust the cache “manually”, in which case we
-        # increment it.
-        cache-name: cache-clojure-cli-tools-v3
-      with:
-        path: /usr/local/clojure-tools
-        key: ${{ runner.os }}-${{ github.workflow }}-${{ env.cache-name }}-${{ hashFiles('deps.edn') }}
+      - name: Cache Clojure CLI Tools
+        id: cache-clojure-cli-tools
+        uses: actions/cache@v1
+        env:
+          # The version suffix is used if/when we need to bust the cache “manually”, in which case we
+          # increment it.
+          cache-name: cache-clojure-cli-tools-v3
+        with:
+          path: /usr/local/clojure-tools
+          key: ${{ runner.os }}-${{ github.workflow }}-${{ env.cache-name }}-${{ hashFiles('deps.edn') }}
 
-    - name: Cache libraries downloaded via Maven
-      uses: actions/cache@v1
-      env:
-        # The version suffix is used if/when we need to bust the cache “manually”, in which case we
-        # increment it.
-        cache-name: cache-maven-libraries-v3
-      with:
-        path: ~/.m2
-        key: ${{ runner.os }}-${{ github.workflow }}-${{ env.cache-name }}-${{ hashFiles('deps.edn') }}
+      - name: Cache libraries downloaded via Maven
+        uses: actions/cache@v1
+        env:
+          # The version suffix is used if/when we need to bust the cache “manually”, in which case we
+          # increment it.
+          cache-name: cache-maven-libraries-v3
+        with:
+          path: ~/.m2
+          key: ${{ runner.os }}-${{ github.workflow }}-${{ env.cache-name }}-${{ hashFiles('deps.edn') }}
 
-    - name: Cache libraries downloaded via Git
-      uses: actions/cache@v1
-      env:
-        # The version suffix is used if/when we need to bust the cache “manually”, in which case we
-        # increment it.
-        cache-name: cache-git-libraries-v3
-      with:
-        path: ~/.gitlibs
-        key: ${{ runner.os }}-${{ github.workflow }}-${{ env.cache-name }}-${{ hashFiles('deps.edn') }}
+      - name: Cache libraries downloaded via Git
+        uses: actions/cache@v1
+        env:
+          # The version suffix is used if/when we need to bust the cache “manually”, in which case we
+          # increment it.
+          cache-name: cache-git-libraries-v3
+        with:
+          path: ~/.gitlibs
+          key: ${{ runner.os }}-${{ github.workflow }}-${{ env.cache-name }}-${{ hashFiles('deps.edn') }}
 
-    - name: Install Clojure CLI Tools
-      if: steps.cache-clojure-cli-tools.outputs.cache-hit != 'true'
-      run: |
-        # Steps found at https://clojure.org/guides/getting_started#_installation_on_linux
-        curl -O https://download.clojure.org/install/linux-install-1.10.1.536.sh
-        chmod +x linux-install-1.10.1.536.sh
-        # I added the --prefix option below; it makes it easier to cache the tools
-        sudo ./linux-install-1.10.1.536.sh --prefix /usr/local/clojure-tools
+      - name: Install Clojure CLI Tools
+        if: steps.cache-clojure-cli-tools.outputs.cache-hit != 'true'
+        run: |
+          # Steps found at https://clojure.org/guides/getting_started#_installation_on_linux
+          curl -O https://download.clojure.org/install/linux-install-1.10.1.536.sh
+          chmod +x linux-install-1.10.1.536.sh
+          # I added the --prefix option below; it makes it easier to cache the tools
+          sudo ./linux-install-1.10.1.536.sh --prefix /usr/local/clojure-tools
 
-    - name: Run the test suite (and download deps first, if necessary)
-      run: |
-        export PATH="$PATH:/usr/local/clojure-tools/bin"
-        bin/kaocha examples
+      - name: Run the test suite (and download deps first, if necessary)
+        run: |
+          export PATH="$PATH:/usr/local/clojure-tools/bin"
+          bin/kaocha examples
