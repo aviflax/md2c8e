@@ -15,6 +15,12 @@ you’re comfortable running the tool from a Clojure [REPL][repl] — then it *
 idea for you to try using this tool.
 
 
+## Documentation
+
+* [Contributing][contributing]
+* [Developing and Testing][dev-and-test]
+
+
 ## Origin story
 
 This tool was created by the Architecture team at [Funding Circle][fc-gh]. The team was authoring
@@ -49,6 +55,8 @@ inception of this tool:
 
 [clojure]: https://clojure.org
 [confluence]: https://www.atlassian.com/software/confluence
+[contributing]: docs/contributing.md
+[dev-and-test]: docs/dev.md
 [fc-gh]: https://github.com/FundingCircle/
 [github]: https://github.com/
 [markdown]: https://en.wikipedia.org/wiki/Markdown
