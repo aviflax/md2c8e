@@ -26,10 +26,6 @@ jobs:
       # See https://github.com/actions/cache/pull/212 and
       # https://github.com/actions/cache/issues/288#issuecomment-627478569
 
-      - name: Work around a permissions issue
-        # It seems the cache action can’t create this dir in this path. Maybe this step can.
-        run: mkdir /usr/local/clojure-tools
-
       - name: Cache Clojure CLI Tools
         id: cache-clojure-cli-tools
         uses: actions/cache@v1
@@ -38,7 +34,7 @@ jobs:
           # increment it.
           cache-name: cache-clojure-cli-tools-v3
         with:
-          path: /usr/local/clojure-tools
+          path: ~/clojure-tools
           key: ${{ runner.os }}-${{ github.workflow }}-${{ env.cache-name }}-${{ hashFiles('deps.edn') }}
 
       - name: Cache libraries downloaded via Maven
@@ -68,9 +64,9 @@ jobs:
           curl -O https://download.clojure.org/install/linux-install-1.10.1.536.sh
           chmod +x linux-install-1.10.1.536.sh
           # I added the --prefix option below; it makes it easier to cache the tools
-          sudo ./linux-install-1.10.1.536.sh --prefix /usr/local/clojure-tools
+          sudo ./linux-install-1.10.1.536.sh --prefix ~/clojure-tools
 
       - name: Run the test suite (and download deps first, if necessary)
         run: |
-          export PATH="$PATH:/usr/local/clojure-tools/bin"
+          export PATH="$PATH:/home/runner/clojure-tools/bin"
           bin/kaocha examples
