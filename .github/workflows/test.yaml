@@ -34,7 +34,7 @@ jobs:
         # increment it.
         cache-name: cache-clojure-cli-tools-v3
       with:
-        path: ~/clojure-tools
+        path: /usr/local/clojure-tools
         key: ${{ runner.os }}-${{ github.workflow }}-${{ env.cache-name }}-${{ hashFiles('deps.edn') }}
 
     - name: Cache libraries downloaded via Maven
@@ -64,9 +64,9 @@ jobs:
         curl -O https://download.clojure.org/install/linux-install-1.10.1.536.sh
         chmod +x linux-install-1.10.1.536.sh
         # I added the --prefix option below; it makes it easier to cache the tools
-        sudo ./linux-install-1.10.1.536.sh --prefix ~/clojure-tools
+        sudo ./linux-install-1.10.1.536.sh --prefix /usr/local/clojure-tools
 
     - name: Run the test suite (and download deps first, if necessary)
       run: |
-        export PATH="$PATH:~/clojure-tools/bin"
+        export PATH="$PATH:/usr/local/clojure-tools/bin"
         bin/kaocha examples
