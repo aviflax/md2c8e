@@ -21,8 +21,38 @@ jobs:
     - name: Check out the repo
       uses: actions/checkout@v2
 
+    # actions/cache@v2, which should be released in Spring or Summer 2020, will include support for
+    # multiple paths, so we’ll be able to merge all these cache steps into a single step.
+    # See https://github.com/actions/cache/pull/212 and
+    # https://github.com/actions/cache/issues/288#issuecomment-627478569
+
+    - name: Cache Clojure CLI Tools Libraries
+      id: cache-clojure-cli-tools-libs
+      uses: actions/cache@v1
+      env:
+        # The version suffix is used if/when we need to bust the cache “manually”, in which case we
+        # increment it.
+        cache-name: cache-clojure-tools-libs-v3
+      with:
+        path: /usr/local/lib/clojure
+        key: ${{ runner.os }}-${{ github.workflow }}-${{ env.cache-name }}-${{ hashFiles('deps.edn') }}
+
+    - name: Cache Clojure CLI Tools Scripts
+      id: cache-clojure-cli-tools-scripts
+      uses: actions/cache@v1
+      env:
+        # The version suffix is used if/when we need to bust the cache “manually”, in which case we
+        # increment it.
+        cache-name: cache-clojure-tools-scripts-v3
+      with:
+        # This is a bit silly, to cache this entire dir, but there’s no other way to do it, yet.
+        # actions/cache@v2 will have the ability to specify globs; once it’s released we can fix
+        # this. See https://github.com/actions/cache/pull/212 and
+        # https://github.com/actions/cache/issues/288#issuecomment-627478569
+        path: /usr/local/bin
+        key: ${{ runner.os }}-${{ github.workflow }}-${{ env.cache-name }}-${{ hashFiles('deps.edn') }}
+
     - name: Cache libraries downloaded via Maven
-      id: cache-maven
       uses: actions/cache@v1
       env:
         # The version suffix is used if/when we need to bust the cache “manually”, in which case we
@@ -43,7 +73,7 @@ jobs:
         key: ${{ runner.os }}-${{ github.workflow }}-${{ env.cache-name }}-${{ hashFiles('deps.edn') }}
 
     - name: Install Clojure CLI Tools
-      if: steps.cache-maven.outputs.cache-hit != 'true'
+      if: steps.cache-clojure-cli-tools-libs.outputs.cache-hit != 'true' || steps.cache-clojure-cli-tools-scripts.outputs.cache-hit != 'true'
       run: |
         # Steps copy-pasta’d from https://clojure.org/guides/getting_started#_installation_on_linux
         curl -O https://download.clojure.org/install/linux-install-1.10.1.536.sh
