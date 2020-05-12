@@ -68,5 +68,5 @@ jobs:
 
     - name: Run the test suite (and download deps first, if necessary)
       run: |
-        export PATH="$PATH:~/clojure-tools"
+        export PATH="$PATH:~/clojure-tools/bin"
         bin/kaocha examples
