@@ -1,18 +1,9 @@
 (ns md2c8e.core-test
   (:require [clojure.java.io :as io :refer [file]]
-            [clojure.string :as str :refer [ends-with?]]
             [clojure.test :refer [are deftest is testing]]
-            [md2c8e.confluence :as c8e]
             [md2c8e.core :as core]
-            [md2c8e.markdown :as md]))
-
-(defn- page
-  [title ^String fp & children]
-  {::c8e/page-id nil
-   ::c8e/title title
-   ::md/source {::md/fp (file fp)
-                ::md/is-file (not (ends-with? fp "/"))}
-   ::md/children (or children [])})
+            [md2c8e.markdown :as md]
+            [md2c8e.test-utils :refer [page]]))
 
 (deftest test-readme?
   (are [expected given] (= expected (#'core/readme? given))
