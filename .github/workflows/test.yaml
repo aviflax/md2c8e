@@ -42,7 +42,7 @@ jobs:
         path: ~/.gitlibs
         key: ${{ runner.os }}-${{ github.workflow }}-${{ env.cache-name }}-${{ hashFiles('deps.edn') }}
 
-    - name: Install Clojure with tools.deps
+    - name: Install Clojure CLI Tools
       if: steps.cache-maven.outputs.cache-hit != 'true'
       run: |
         # Steps copy-pasta’d from https://clojure.org/guides/getting_started#_installation_on_linux
@@ -50,5 +50,5 @@ jobs:
         chmod +x linux-install-1.10.1.536.sh
         sudo ./linux-install-1.10.1.536.sh
 
-    - name: Run the test suite
+    - name: Run the test suite (and download deps first, if necessary)
       run: bin/kaocha examples
