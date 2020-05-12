@@ -12,14 +12,15 @@ jobs:
     container: clojure:openjdk-11-tools-deps-1.10.1.502-stretch
 
     steps:
-    - uses: actions/checkout@v2
+    - name: Check out the repo
+      uses: actions/checkout@v2
 
     - name: Cache libraries downloaded via Maven
       uses: actions/cache@v1
       env:
         # The version suffix is used if/when we need to bust the cache manually, in which case we
         # increment it.
-        cache-name: cache-maven-libraries-v1
+        cache-name: cache-maven-libraries-v2
       with:
         path: ~/.m2
         key: ${{ runner.os }}-${{ github.workflow }}-${{ env.cache-name }}-${{ hashFiles('deps.edn') }}
@@ -29,9 +30,10 @@ jobs:
       env:
         # The version suffix is used if/when we need to bust the cache manually, in which case we
         # increment it.
-        cache-name: cache-git-libraries-v1
+        cache-name: cache-git-libraries-v2
       with:
         path: ~/.gitlibs
         key: ${{ runner.os }}-${{ github.workflow }}-${{ env.cache-name }}-${{ hashFiles('deps.edn') }}
 
-    - run: bin/kaocha examples
+    - name: Run the test suite
+      run: bin/kaocha examples
