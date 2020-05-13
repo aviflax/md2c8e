@@ -1,14 +1,14 @@
 (ns md2c8e.links
   (:require [clojure.string :as str]
             [clojure.walk :as walk]
-            [md2c8e.confluence :as confluence]
+            [md2c8e.confluence :as c8e]
             [md2c8e.markdown :as md]
             [md2c8e.paths :as paths]))
 
 (defn- page?
   [v]
   (and (map? v)
-       (contains? v ::confluence/page-id))) ;; maybe use children? or a spec?
+       (contains? v ::c8e/page-id))) ;; maybe use children? or a spec?
 
 (defn- page-seq
   [page-tree]
@@ -20,7 +20,7 @@
   (->> (page-seq page-tree)
        (filter ::md/source)
        (map (fn [page] (vector (paths/relative-path source-dir (get-in page [::md/source ::md/fp]))
-                               (::confluence/title page))))
+                               (::c8e/title page))))
        (into {})))
 
 (defn- resolve-link
@@ -67,11 +67,11 @@
         base-path (paths/path source-dir)]
     (walk/postwalk
       (fn [v]
-        (if-not (and (page? v) (::confluence/body v))
+        (if-not (and (page? v) (::c8e/body v))
           v
           (let [sfp (get-in v [::md/source ::md/fp])]
-            (println "Processing:" (::confluence/title v))
-            (update v ::confluence/body (fn [body]
+            (println "Processing:" (::c8e/title v))
+            (update v ::c8e/body (fn [body]
                                           (str/replace body
                                                        #"<a.+</a>"
                                                        #(link->confluence % sfp base-path lookup)))))))

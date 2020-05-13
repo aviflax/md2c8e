@@ -2,19 +2,19 @@
   (:require [clojure.java.io :as io :refer [file]]
             [cognitect.anomalies :as anom]
             [md2c8e.anomalies :refer [anom]]
-            [md2c8e.confluence :as confluence :refer [make-client page-exists?!]]
+            [md2c8e.confluence :as c8e :refer [make-client page-exists?!]]
             [md2c8e.core :refer [dir->page-tree publish]]
             [md2c8e.links :refer [replace-links]]
             [md2c8e.markdown :as md]
             [md2c8e.paths :as paths]))
 
 (defn- summarize
-  [ptap source-dir] ; ptap == page-tree-after-publish
+  [results source-dir]
   (let [{:keys [:created :updated :failed :skipped]}
         (group-by #(cond (anom %)              :failed
-                         (::confluence/page %) (keyword (str (name (::confluence/operation %)) "d"))
+                         (::c8e/page %) (keyword (str (name (::c8e/operation %)) "d"))
                          :else                 :skipped)
-                  ptap)]
+                  results)]
     (println (format (str "-------------------\n"
                           "✅ Created: %s\n"
                           "✅ Updated: %s\n"
@@ -24,7 +24,7 @@
                      (count updated)
                      (count skipped)
                      (count failed)))
-    (doseq [{:keys [::confluence/page ::anom/message]} failed
+    (doseq [{:keys [::c8e/page ::anom/message]} failed
             :let [sfrp ;; source-file-relative-path
                   (paths/relative-path source-dir (get-in page [::md/source ::md/fp]))]]
       (println "   🚨" (str sfrp) "\n"

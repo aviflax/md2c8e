@@ -7,8 +7,8 @@
   (:import [java.io File]))
 
 (def ^:private constants
-  {:connect-timeout 1000
-   :request-timeout 5000})
+  {:connect-timeout 5000
+   :request-timeout 10000})
 
 (defn- api-url
   [confluence-root-url first-path-segment & more-path-segments]
@@ -127,12 +127,13 @@
          (:body res))))
 
 (defn- enrich-err
-  [err source-file title body]
+  [err operation source-file title body]
   (let [tmpfile (File/createTempFile (or (and source-file (.getName source-file))
                                          title)
                                      ".xhtml")]
     (spit tmpfile body)
-    (update err ::anom/message #(str % " --  XHTML body written to: " tmpfile))))
+    (-> (assoc err ::operation operation)
+        (update ::anom/message #(str % " --  XHTML body written to: " tmpfile)))))
 
 (defn upsert
   "Useful for when we want to publish a page that may or may not have already been published; we
@@ -159,7 +160,7 @@
                 (anom get-res)
                 (anom op-res))]
     (if err
-      (enrich-err err (::md/fp source) title body)
+      (enrich-err err op (::md/fp source) title body)
       {::operation op
        ::page op-res
        ::versions {::prior (get-in page [:version :number])
