@@ -12,14 +12,14 @@ jobs:
     # and honestly it’s not that hard to install and cache Clojure.
 
     steps:
+      - name: Check out the repo
+        uses: actions/checkout@v2
+
       - name: Set up Java
         uses: actions/setup-java@v1
         with:
           java-version: '11.0.7'
           java-package: jre
-
-      - name: Check out the repo
-        uses: actions/checkout@v2
 
       # actions/cache@v2, which should be released in Spring or Summer 2020, will include support for
       # multiple paths, so we’ll be able to merge all these cache steps into a single step.
