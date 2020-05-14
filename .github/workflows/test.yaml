@@ -1,22 +1,21 @@
 name: Test
-
 on: push
-
-# Each test suite will have its own job so they can run concurrently. (Our test runner, Kaocha,
-# doesn’t currently support concurrency.)
 jobs:
-  Examples:
+  Suite:
     runs-on: ubuntu-18.04
     container: clojure:openjdk-11-tools-deps-1.10.1.502-stretch
+    strategy:
+      matrix:
+        suite: [examples, integration, properties]
     steps:
       - uses: actions/checkout@v2
       - uses: actions/cache@bac1a40c # We need a not-yet-released feature: https://git.io/JfBDh
         env:
-          cache-version: v2 # Change this to “manually” bust the cache
+          cache-version: v2 # Change this to “manually” bust the cache.
         with:
           path: |
             .cpcache
             /root/.m2
             /root/.gitlibs
           key: ${{ runner.os }}-${{ github.workflow }}-${{ env.cache-version }}-${{ hashFiles('deps.edn') }}
-      - run: bin/kaocha examples
+      - run: bin/kaocha ${{ matrix.suite }}
