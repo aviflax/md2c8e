@@ -10,15 +10,13 @@ jobs:
     container: clojure:openjdk-11-tools-deps-1.10.1.502-stretch
     steps:
       - uses: actions/checkout@v2
-
-      - uses: actions/cache@bac1a40c # We need a not-yet-released feature
+      - uses: actions/cache@bac1a40c # We need a not-yet-released feature: https://git.io/JfBDh
         env:
-          cache-version: v1
+          cache-version: v1 # Change this to “manually” bust the cache
         with:
           path: |
             .cpcache
             ~/.m2
             ~/.gitlibs
           key: ${{ runner.os }}-${{ github.workflow }}-${{ env.cache-version }}-${{ hashFiles('deps.edn') }}
-
       - run: bin/kaocha examples
