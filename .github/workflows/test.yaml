@@ -4,9 +4,10 @@ jobs:
   Suite:
     strategy:
       matrix:
+        os: [macos-latest, windows-latest, ubuntu-18.04]
         suite: [examples, integration, properties]
         java: [8, 11]
-    runs-on: ubuntu-18.04
+    runs-on: ${{ os }}
     container: clojure:openjdk-${{ matrix.java }}-tools-deps-1.10.1.502-stretch
     steps:
       - uses: actions/checkout@v2
