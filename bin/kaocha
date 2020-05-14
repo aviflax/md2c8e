@@ -1,3 +1,7 @@
-#!/usr/bin/env bash
+#!/bin/sh
+
+# Run this from the root of the repo.
+
+# Kaocha is our test runner. Docs: https://github.com/lambdaisland/kaocha
 
 clojure -A:test -m kaocha.runner "$@"

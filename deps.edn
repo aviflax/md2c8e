@@ -14,6 +14,9 @@
   :aliases
   {:dev {:jvm-opts ["-XX:-OmitStackTraceInFastThrow"
                     "--illegal-access=deny"
+                    ;; If you run into port conflicts, you/we can change the port specified in
+                    ;; deps.edn to `0` — which means “some available port” — and then use `lsof` or
+                    ;; some equivalent (e.g. Sloth on MacOS) to discover the port that was chosen.
                     "-Dclojure.server.repl={:port,5555,:accept,clojure.core.server/repl}"]}
 
    :test {:extra-paths ["test"]
