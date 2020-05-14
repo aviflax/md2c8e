@@ -4,7 +4,7 @@ jobs:
   Linux:
     strategy:
       matrix:
-        suite: [examples, integration, properties]
+        suite: [examples] # Our other suites (integration, properties) are empty — for now!
         java: [11, 13, 14]
     runs-on: ubuntu-18.04
     container: clojure:openjdk-${{ matrix.java }}-tools-deps-1.10.1.502-slim-buster
@@ -23,7 +23,7 @@ jobs:
   Mac:
     strategy:
       matrix:
-        suite: [examples, integration, properties]
+        suite: [examples] # Our other suites (integration, properties) are empty — for now!
         java: [11, 13, 14]
     runs-on: macos-10.15
     steps:
