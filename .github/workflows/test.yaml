@@ -1,7 +1,7 @@
 name: Test
 on: push
 jobs:
-  Suite:
+  Linux:
     strategy:
       matrix:
         suite: [examples, integration, properties]
@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions/cache@bac1a40c # We need a not-yet-released feature: https://git.io/JfBDh
         env:
-          cache-version: v2 # Change this to “manually” bust the cache.
+          cache-version: v3 # Change this to “manually” bust the cache.
         with:
           path: |
             .cpcache
