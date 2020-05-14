@@ -11,8 +11,32 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: actions/cache@bac1a40c # We need a not-yet-released feature: https://git.io/JfBDh
-        env:
-          cache-version: v3 # Change this to “manually” bust the cache.
+        env: { cache-version: v3 }
+        with:
+          path: |
+            .cpcache
+            /root/.m2
+            /root/.gitlibs
+          key: ${{ runner.os }}-${{ github.workflow }}-${{ env.cache-version }}-${{ hashFiles('deps.edn') }}
+      - run: bin/kaocha ${{ matrix.suite }}
+
+  Mac:
+    strategy:
+      matrix:
+        suite: [examples, integration, properties]
+        java: [11, 13, 14]
+    runs-on: macos-10.15
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-java@v1
+        with:
+          java-version: ${{ matrix.java }}
+          java-package: jre
+      - uses: DeLaGuardo/setup-clojure@2.0
+        with:
+          tools-deps: '1.10.1.502'
+      - uses: actions/cache@bac1a40c # We need a not-yet-released feature: https://git.io/JfBDh
+        env: { cache-version: v3 }
         with:
           path: |
             .cpcache
