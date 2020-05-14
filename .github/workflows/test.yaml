@@ -1,46 +1,27 @@
 name: Test
 on: push
 jobs:
-  Linux:
+  Kaocha:
     strategy:
       matrix:
         suite: [examples, integration, properties]
+        os: [macos-10.15, ubuntu-18.04]
         java: [11, 13, 14]
-    runs-on: ubuntu-18.04
-    container: clojure:openjdk-${{ matrix.java }}-tools-deps-1.10.1.502-slim-buster
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
       - uses: actions/cache@bac1a40c # We need a not-yet-released feature: https://git.io/JfBDh
-        env: { cache-version: v3 }
+        env: { cache-version: v4 }
         with:
           path: |
             .cpcache
-            /root/.m2
-            /root/.gitlibs
+            ~/.m2
+            ~/.gitlibs
           key: ${{ runner.os }}-${{ github.workflow }}-${{ env.cache-version }}-${{ hashFiles('deps.edn') }}
-      - run: bin/kaocha ${{ matrix.suite }}
-
-  Mac:
-    strategy:
-      matrix:
-        suite: [examples, integration, properties]
-        java: [11, 13, 14]
-    runs-on: macos-10.15
-    steps:
-      - uses: actions/checkout@v2
       - uses: actions/setup-java@v1
         with:
           java-version: ${{ matrix.java }}
           java-package: jre
       - uses: DeLaGuardo/setup-clojure@2.0
-        with:
-          tools-deps: '1.10.1.502'
-      - uses: actions/cache@bac1a40c # We need a not-yet-released feature: https://git.io/JfBDh
-        env: { cache-version: v3 }
-        with:
-          path: |
-            .cpcache
-            /root/.m2
-            /root/.gitlibs
-          key: ${{ runner.os }}-${{ github.workflow }}-${{ env.cache-version }}-${{ hashFiles('deps.edn') }}
+        with: { tools-deps: '1.10.1.502' }
       - run: bin/kaocha ${{ matrix.suite }}
