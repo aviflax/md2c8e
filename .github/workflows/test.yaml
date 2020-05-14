@@ -1,9 +1,13 @@
 name: Test
 on: push
 jobs:
-  examples:
+  Kaocha:
+    strategy:
+      matrix:
+        suite: [examples, integration, properties]
+        java: [11, 13, 14]
     runs-on: ubuntu-18.04
-    container: clojure:openjdk-11-tools-deps-1.10.1.502-slim-buster
+    container: clojure:openjdk-${{ matrix.java }}-tools-deps-1.10.1.502-slim-buster
     steps:
       - uses: actions/checkout@v2
       - uses: actions/cache@bac1a40c # We need a not-yet-released feature: https://git.io/JfBDh
@@ -14,4 +18,4 @@ jobs:
             /root/.m2
             /root/.gitlibs
           key: ${{ runner.os }}-${{ github.workflow }}-${{ env.cache-version }}-${{ hashFiles('deps.edn') }}
-      - run: bin/kaocha examples
+      - run: bin/kaocha ${{ matrix.suite }}
