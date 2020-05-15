@@ -82,8 +82,8 @@
    (let [executor (Executors/newFixedThreadPool threads)]
      (try
        (->> (remove readme? children)
-            (map (fn [child] (.submit executor #(publish child page-id client executor))))
-            (mapv deref)
+            (mapv (fn [child] (.submit executor ^Callable #(publish child page-id client executor))))
+            (mapv (memfn get))
             (apply concat))
        (finally
          (.shutdownNow executor)))))
@@ -99,8 +99,8 @@
                      (str " (" (name op) ")"))))
      (if (and succeeded? (seq children))
        (->> (remove readme? children)
-            (map (fn [child] (.submit executor #(publish child page-id client))))
-            (mapv deref)
+            (mapv (fn [child] (.submit executor ^Callable #(publish child page-id client executor))))
+            (mapv (memfn get))
             (apply concat)
             (cons result))
        [result]))))
