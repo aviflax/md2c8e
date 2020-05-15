@@ -77,9 +77,15 @@
 (defn- get-page-by-title
   "Get the page with the supplied title, or nil if no such page is found."
   [title space-key {:keys [::req-opts ::url] :as _client}]
-  (let [res (hc/get (url :content) (assoc req-opts :query-params {:spaceKey space-key
-                                                                  :title title
-                                                                  :expand "version"}))
+  (let [res (hc/get (url :content)
+                    (assoc req-opts
+                          :query-params {:spaceKey space-key
+                                         :title title
+                                         ;; The default is 25. We only want one result, but we need
+                                         ;; to know if there’s more than one, because that’s an
+                                         ;; error condition that we need to detect.
+                                         :limit 2
+                                         :expand "version"}))
         results (get-in res [:body :results])]
     (if (and (= (:status res) 200)
              (<= (count results) 1))
