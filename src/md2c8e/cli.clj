@@ -6,8 +6,7 @@
             [md2c8e.core :refer [dir->page-tree publish]]
             [md2c8e.links :refer [replace-links]]
             [md2c8e.markdown :as md]
-            [md2c8e.paths :as paths])
-  (:import [java.util.concurrent Executors]))
+            [md2c8e.paths :as paths]))
 
 (defn- summarize
   [results source-dir]
@@ -31,26 +30,19 @@
       (println "   🚨" (str sfrp) "\n"
                "    " message "\n"))))
 
-(defn- set-executor!
-  [threads]
-  ;; We’re not using agents in the code as of this writing, but we are using futures, and for
-  ;; whatever reason Clojure futures use the agent-send-off executor. The default executor uses an
-  ;; unbounded number of threads which is no good for our case; it could DOS the Confluence site.
-  (set-agent-send-off-executor! (Executors/newFixedThreadPool threads)))
-
 (defn -main
   [& [source-dir
       root-page-id
       confluence-root-url ;; The root URL of the Confluence site, not the root of the REST API.
       username
       password :as _args]]
-  (set-executor! 10) ;; TODO: make this configurable as a command-line option!
   (let [client (make-client confluence-root-url username password)
+        threads 10 ;; TODO: make this configurable as a command-line option!
         _ (page-exists?! root-page-id client)]
     (-> (dir->page-tree (file source-dir) root-page-id)
         (replace-links source-dir)
         ; (validate)
-        (publish client)
+        (publish client threads)
         (summarize source-dir))))
 
 

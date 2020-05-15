@@ -6,7 +6,8 @@
             [md2c8e.io :as io]
             [md2c8e.markdown :as md]
             [medley.core :as mc :refer [find-first]])
-  (:import [java.io File]))
+  (:import [java.io File]
+           [java.util.concurrent Executors]))
 
 (defn- print-now
   [& more]
@@ -56,7 +57,7 @@
   [^File source-dir root-page-id]
   {:pre [(.isDirectory source-dir)]}
   {::c8e/page-id root-page-id
-   ::md/children (->> (pmap file->page (io/page-files source-dir)) ; using mapv because file->page does IO
+   ::md/children (->> (pmap file->page (io/page-files source-dir))
                       (mapv integrate-readme))})
 
 (defn validate
@@ -76,14 +77,18 @@
 
   ;; TODO: consider specifying a timeout and timeout value when creating the futures.
 
-  ([{:keys [::c8e/page-id ::md/children] :as _root-page} client]
+  ([{:keys [::c8e/page-id ::md/children] :as _root-page} client threads]
    {:pre [page-id]}
-   (->> (remove readme? children)
-        (map #(future (publish % page-id client)))
-        (mapv deref)
-        (apply concat)))
+   (let [executor (Executors/newFixedThreadPool threads)]
+     (try
+       (->> (remove readme? children)
+            (map (fn [child] (.submit executor #(publish child page-id client executor))))
+            (mapv deref)
+            (apply concat))
+       (finally
+         (.shutdownNow executor)))))
 
-  ([{:keys [::c8e/page-id ::c8e/title ::md/children] :as page} parent-id client]
+  ([{:keys [::c8e/page-id ::c8e/title ::md/children] :as page} parent-id client executor]
    {:pre [(nil? page-id)]}
    (let [result (upsert page parent-id client)
          page-id (get-in result [::c8e/page :id])
@@ -94,7 +99,7 @@
                      (str " (" (name op) ")"))))
      (if (and succeeded? (seq children))
        (->> (remove readme? children)
-            (map #(future (publish % page-id client)))
+            (map (fn [child] (.submit executor #(publish child page-id client))))
             (mapv deref)
             (apply concat)
             (cons result))
