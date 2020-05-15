@@ -56,7 +56,10 @@
   [^File source-dir root-page-id]
   {:pre [(.isDirectory source-dir)]}
   {::c8e/page-id root-page-id
-   ::md/children (->> (pmap file->page (io/page-files source-dir)) ; using mapv because file->page does IO
+   ::md/children (->> (pmap file->page (io/page-files source-dir))
+                      (doall) ;; TODO: EXPLAIN!
+                      ;; TODO: BUG: this is running integrate-readme only on the children of the
+                      ;; root, but in fact we want to run it on all directories at every level.
                       (mapv integrate-readme))})
 
 (defn validate
