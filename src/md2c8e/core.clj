@@ -1,7 +1,7 @@
 (ns md2c8e.core
-  (:require [com.climate.claypoole :as cp]
-            [clojure.string :as str :refer [ends-with? lower-case]]
+  (:require [clojure.string :as str :refer [ends-with? lower-case]]
             [cognitect.anomalies :as anom]
+            [com.climate.claypoole :as cp]
             [md2c8e.anomalies :refer [anom]]
             [md2c8e.confluence :as c8e :refer [upsert]]
             [md2c8e.io :as io]
