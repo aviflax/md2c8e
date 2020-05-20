@@ -58,9 +58,9 @@
     ::anom/message "TODO: implement validate!!!"}])
 
 (defn- print-progress
-  [{:keys [::c8e/title] :as _page} res]
+  [page res]
   (println (str (if (anom res)  "🚨 " "✅ ")
-                title
+                (::c8e/title page)
                 (when-let [op (::c8e/operation res)]
                   (str " (" (name op) ")")))))
 
