@@ -57,6 +57,13 @@
   [{::anom/type :fault
     ::anom/message "TODO: implement validate!!!"}])
 
+(defn- print-progress
+  [{:keys [::c8e/title] :as _page} res]
+  (println (str (if (anom res)  "🚨 " "✅ ")
+                title
+                (when-let [op (::c8e/operation res)]
+                  (str " (" (name op) ")")))))
+
 (defn publish
   "Page might have children, which might have children; in other words; it might be a tree. All
   pages in the tree, if any, will be upserted.
@@ -65,25 +72,18 @@
   page or an ::anom/anomaly."
 
   ([{:keys [::c8e/page-id ::md/children] :as _root-page} client threads]
-   {:pre [page-id]}
+   {:pre [(some? page-id)]}
    (cp/with-shutdown! [pool (cp/threadpool threads)]
-     ;; TODO: maybe specify a timeout and timeout value?
-     (->> (mapv #(cp/future pool (publish % page-id client pool)) children)
-          (mapv deref)
-          (concat))))
+     (mapcat #(publish % page-id client pool) children)))
 
-  ([{:keys [::c8e/page-id ::c8e/title ::md/children] :as page} parent-id client pool]
-   {:pre [(nil? page-id)]}
-   (let [result (upsert page parent-id client)
-         page-id (get-in result [::c8e/page :id])
+  ([{:keys [::md/children] :as page} parent-id client pool]
+   (let [res (upsert page parent-id client)
+         page-id (get-in res [::c8e/page :id])
          succeeded? (some? page-id)]
-     (println (str (if (anom result)  "🚨 " "✅ ")
-                   title
-                   (when-let [op (::c8e/operation result)]
-                     (str " (" (name op) ")"))))
+     (print-progress page res)
      (if (and succeeded? (seq children))
        (->> (mapv #(cp/future pool (publish % page-id client pool)) children)
             (mapv deref)
             (apply concat)
-            (cons result))
-       [result]))))
+            (cons res))
+       [res]))))
