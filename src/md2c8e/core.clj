@@ -74,7 +74,8 @@
   ([{:keys [::c8e/page-id ::md/children] :as _root-page} client threads]
    {:pre [(some? page-id)]}
    (cp/with-shutdown! [pool (cp/threadpool threads)]
-     (mapcat #(publish % page-id client pool) children)))
+     (->> (cp/pmap pool #(publish % page-id client pool) children)
+          (apply concat))))
 
   ([{:keys [::md/children] :as page} parent-id client pool]
    (let [res (upsert page parent-id client)
