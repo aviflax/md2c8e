@@ -66,7 +66,7 @@
 
   ([{:keys [::c8e/page-id ::md/children] :as _root-page} client threads]
    {:pre [page-id]}
-   (cp/with-shutdown! [pool (cp/threadpool threads)] ;; TODO: SHUT DOWN THE THREADPOOL
+   (cp/with-shutdown! [pool (cp/threadpool threads)]
      ;; TODO: maybe specify a timeout and timeout value?
      (->> (mapv #(cp/future pool (publish % page-id client pool)) children)
           (mapv deref)
