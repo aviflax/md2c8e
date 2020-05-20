@@ -2,15 +2,7 @@
                    :sha "2decbbb3ffd8e919c67d29f39ec6d920575f65c3"
                    :tag "0.1.12"
                    :deps/manifest :deps}
-        
-        com.climate/claypoole {:mvn/version "1.1.4"}
-        
-        ; claypoole {:git/url "https://github.com/TheClimateCorporation/claypoole"
-        ;            :sha "f0a4a49ff51a820bcbcec145d3bf9e77a44be07c"
-        ;            :tag "v1.1.4"
-        ;            :deps/manifest :deps
-        ;            :paths ["src/clj"]}
-
+        com.climate/claypoole {:mvn/version "1.1.4"} ; not currently compatible as a gitlib
         hato {:git/url "https://github.com/gnarroway/hato"
               :sha "2417af9c932958ab537c77e01c045e1457bad9e1"
               :tag "v0.5.0"
