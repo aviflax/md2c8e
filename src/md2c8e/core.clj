@@ -82,8 +82,7 @@
                    (when-let [op (::c8e/operation result)]
                      (str " (" (name op) ")"))))
      (if (and succeeded? (seq children))
-       (->> (mapv #(cp/future pool (publish % page-id client pool)) children)
-            (mapv deref)
+       (->> (cp/pmap pool #(publish % page-id client pool) children)
             (apply concat)
             (cons result))
        [result]))))
