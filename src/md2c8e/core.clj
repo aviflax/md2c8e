@@ -1,6 +1,7 @@
 (ns md2c8e.core
   (:require [clojure.string :as str :refer [ends-with? lower-case]]
             [cognitect.anomalies :as anom]
+            [com.climate.claypoole :as cp]
             [md2c8e.anomalies :refer [anom]]
             [md2c8e.confluence :as c8e :refer [upsert]]
             [md2c8e.io :as io]
@@ -75,19 +76,22 @@
      [res])))
 
 (defn publish
-  "WARNING: this uses a naive approach to concurrency: it uses pmap, which is unbounded in terms
-  of the degree of concurrency — the “width”. This is not OK for general usage but it works OK for
-  my team for right now.
+  "NB: this employs a limited degree of concurrency: all subtrees from the root, in other words all
+  direct children of the root, are published concurrently (with the degree of concurrency bounded to
+  that specified by `threads`). This works well for trees that are wide but shallow. This may be
+  sub-optimal for users whose document trees are deep, but this does work for my team for right now
+  and that’s all I can do right now.
   
-  Page might have children, which might have children; in other words; it might be a tree. All
-  pages in the tree, if any, will be upserted.
+  The root page really should have children, because otherwise what’s the point? Those children
+  might in turn have their own children, which might have children, etc; in other words; it might be
+  a tree. All pages in the tree, except for the root, will be upserted.
   
-  The root page must have an id.
+  The root page must have an value for ::c8e/page-id.
   
   Returns a (flat) sequence of results. Each result will be either a representation of the remote
   page or an ::anom/anomaly."
 
-  [{:keys [::c8e/page-id ::md/children] :as _root-page} client]
+  [{:keys [::c8e/page-id ::md/children] :as _root-page} client threads]
   {:pre [(some? page-id)]}
   (let [root-page-res (c8e/get-page-by-id page-id client)
         space-key (get-in root-page-res [:space :key])
@@ -95,6 +99,6 @@
     (when (or (anom root-page-res)
               (not space-key))
       (throw (ex-info "Root page does not exist, or seems to be malformed." root-page-res)))
-    (->> (pmap #(publish-child % page-id client') children)
+    (->> (cp/pmap threads #(publish-child % page-id client') children)
          (doall)
          (mapcat identity))))

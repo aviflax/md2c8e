@@ -36,11 +36,12 @@
       confluence-root-url ;; The root URL of the Confluence site, not the root of the REST API.
       username
       password :as _args]]
-  (let [client (make-client confluence-root-url username password)]
+  (let [client (make-client confluence-root-url username password)
+        threads 10] ;; TODO: Make threads a command-line option
     (-> (dir->page-tree (file source-dir) root-page-id)
         (replace-links source-dir)
         ; (validate)
-        (publish client)
+        (publish client threads)
         (summarize source-dir))))
 
 
