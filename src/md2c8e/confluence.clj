@@ -96,7 +96,8 @@
       (let [res (get-page-by-id page-id client)
             key (get-in res [:space :key])]
         (or (anom res)
-            (swap! page-id->space-key assoc page-id key)))))
+            (do (swap! page-id->space-key assoc page-id key)
+                key)))))
 
 (defn- update-page
   [{id           :id
