@@ -4,10 +4,9 @@
             [md2c8e.anomalies :refer [anom]]
             [md2c8e.confluence :as c8e :refer [make-client page-exists?!]]
             [md2c8e.core :refer [dir->page-tree publish]]
-            [md2c8e.links :as links :refer [replace-links]]
+            [md2c8e.links :refer [replace-links]]
             [md2c8e.markdown :as md]
-            [md2c8e.paths :as paths])
-  (:import [java.util.concurrent Executors]))
+            [md2c8e.paths :as paths]))
 
 (defn- summarize
   [results source-dir]

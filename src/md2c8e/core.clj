@@ -1,7 +1,7 @@
 (ns md2c8e.core
-  (:require [com.climate.claypoole :as cp]
-            [clojure.string :as str :refer [ends-with? lower-case]]
+  (:require [clojure.string :as str :refer [ends-with? lower-case]]
             [cognitect.anomalies :as anom]
+            [com.climate.claypoole :as cp]
             [md2c8e.anomalies :refer [anom]]
             [md2c8e.confluence :as c8e :refer [upsert]]
             [md2c8e.io :as io]
@@ -87,11 +87,7 @@
   The root page must have an id.
   Returns a (flat) sequence of results. Each result will be either a representation of the remote
   page or an ::anom/anomaly."
-
   ([{:keys [::c8e/page-id ::md/children] :as _root-page} client threads]
    {:pre [page-id]}
-   (cp/with-shutdown! [pool (cp/threadpool threads)] ;; TODO: SHUT DOWN THE THREADPOOL
-     ;; TODO: maybe specify a timeout and timeout value?
+   (cp/with-shutdown! [pool (cp/threadpool threads)]
      (publish-children pool page-id client children))))
-
-  
