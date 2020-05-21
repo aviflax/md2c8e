@@ -57,6 +57,29 @@
   [{::anom/type :fault
     ::anom/message "TODO: implement validate!!!"}])
 
+(def ^:private publish-children)
+
+(defn- publish-child
+ [{:keys [::c8e/page-id ::c8e/title ::md/children] :as page} parent-id client pool]
+ {:pre [(nil? page-id)]}
+ (let [result (upsert page parent-id client)
+       page-id (get-in result [::c8e/page :id])
+       succeeded? (some? page-id)]
+   (println (str (if (anom result)  "🚨 " "✅ ")
+                 title
+                 (when-let [op (::c8e/operation result)]
+                   (str " (" (name op) ")"))))
+   (if (and succeeded? (seq children))
+     (->> (publish-children pool page-id client children)
+          (cons result))
+     [result])))
+
+(defn- publish-children
+  [pool parent-id client children]
+  (->> (cp/pmap pool #(publish-child % parent-id client pool) children)
+       (doall)
+       (apply concat)))
+
 (defn publish
   "Page might have children, which might have children; in other words; it might be a tree. All
   pages in the tree, if any, will be upserted.
@@ -68,22 +91,6 @@
    {:pre [page-id]}
    (cp/with-shutdown! [pool (cp/threadpool threads)] ;; TODO: SHUT DOWN THE THREADPOOL
      ;; TODO: maybe specify a timeout and timeout value?
-     (->> (cp/pmap pool #(publish % page-id client pool) children)
-          (doall)
-          (apply concat))))
+     (publish-children pool page-id client children))))
 
-  ([{:keys [::c8e/page-id ::c8e/title ::md/children] :as page} parent-id client pool]
-   {:pre [(nil? page-id)]}
-   (let [result (upsert page parent-id client)
-         page-id (get-in result [::c8e/page :id])
-         succeeded? (some? page-id)]
-     (println (str (if (anom result)  "🚨 " "✅ ")
-                   title
-                   (when-let [op (::c8e/operation result)]
-                     (str " (" (name op) ")"))))
-     (if (and succeeded? (seq children))
-       (->> (cp/pmap pool #(publish % page-id client pool) children)
-            (doall)
-            (apply concat)
-            (cons result))
-       [result]))))
+  
