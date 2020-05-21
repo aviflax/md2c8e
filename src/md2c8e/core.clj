@@ -57,23 +57,27 @@
   [{::anom/type :fault
     ::anom/message "TODO: implement validate!!!"}])
 
+(defn- print-progress
+  [{:keys [::c8e/title] :as _page} res]
+  (println (str (if (anom res)  "🚨 " "✅ ")
+                title
+                (when-let [op (::c8e/operation res)]
+                  (str " (" (name op) ")")))))
+
 ;; These functions call each other.
 (declare ^:private publish-child publish-children)
 
 (defn- publish-child
- [{:keys [::c8e/page-id ::c8e/title ::md/children] :as page} parent-id client pool]
+ [{:keys [::c8e/page-id ::md/children] :as page} parent-id client pool]
  {:pre [(nil? page-id)]}
- (let [result (upsert page parent-id client)
-       page-id (get-in result [::c8e/page :id])
-       succeeded? (some? page-id)]
-   (println (str (if (anom result)  "🚨 " "✅ ")
-                 title
-                 (when-let [op (::c8e/operation result)]
-                   (str " (" (name op) ")"))))
-   (if (and succeeded? (seq children))
+ (let [res (upsert page parent-id client)
+       page-id (get-in res [::c8e/page :id])
+       success? (some? page-id)]
+   (print-progress page res)
+   (if (and success? (seq children))
      (->> (publish-children pool page-id client children)
-          (cons result))
-     [result])))
+          (cons res))
+     [res])))
 
 (defn- publish-children
   [pool parent-id client children]
@@ -88,6 +92,6 @@
   Returns a (flat) sequence of results. Each result will be either a representation of the remote
   page or an ::anom/anomaly."
   ([{:keys [::c8e/page-id ::md/children] :as _root-page} client threads]
-   {:pre [page-id]}
+   {:pre [(some? page-id)]}
    (cp/with-shutdown! [pool (cp/threadpool threads)]
      (publish-children pool page-id client children))))
