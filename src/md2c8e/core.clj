@@ -88,9 +88,7 @@
     _ (println (format "ENTER %s -> submitting %s tasks" id n))
     ; _ (swap! COUNTER + n)
     start (. System (nanoTime))
-    res (mapv (fn [child] (cp/future pool #(publish-child child parent-id client pool)))
-              children)
-
+    res (mapv #(cp/future pool (publish-child % parent-id client pool)) children)
        ]
        (println (format "EXIT %s -> %s ms" id (/ (double (- (. System (nanoTime)) start)) 1000000.0)))
        res
@@ -105,4 +103,8 @@
   ([{:keys [::c8e/page-id ::md/children] :as _root-page} client threads]
    {:pre [(some? page-id)]}
    (cp/with-shutdown! [pool (cp/threadpool threads)]
-     (mapv deref (publish-children pool page-id client children)))))
+     (->> (publish-children pool page-id client children)
+          (mapv deref)
+          (mapv doall)
+          ; (mapcat identity)
+     ))))
