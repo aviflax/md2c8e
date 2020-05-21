@@ -57,7 +57,8 @@
   [{::anom/type :fault
     ::anom/message "TODO: implement validate!!!"}])
 
-(def ^:private publish-children)
+;; These functions call each other.
+(declare ^:private publish-child publish-children)
 
 (defn- publish-child
  [{:keys [::c8e/page-id ::c8e/title ::md/children] :as page} parent-id client pool]
