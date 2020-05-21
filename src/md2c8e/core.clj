@@ -75,6 +75,7 @@
    {:pre [(some? page-id)]}
    (cp/with-shutdown! [pool (cp/threadpool threads)]
      (->> (cp/pmap pool #(publish % page-id client pool) children)
+          (doall)
           (apply concat))))
 
   ([{:keys [::md/children] :as page} parent-id client pool]
@@ -83,8 +84,8 @@
          succeeded? (some? page-id)]
      (print-progress page res)
      (if (and succeeded? (seq children))
-       (->> (mapv #(cp/future pool (publish % page-id client pool)) children)
-            (mapv deref)
+       (->> (cp/pmap pool #(publish % page-id client pool) children)
+            (doall)
             (apply concat)
             (cons res))
        [res]))))
