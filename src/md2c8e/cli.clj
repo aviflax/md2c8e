@@ -2,7 +2,7 @@
   (:require [clojure.java.io :as io :refer [file]]
             [cognitect.anomalies :as anom]
             [md2c8e.anomalies :refer [anom]]
-            [md2c8e.confluence :as c8e :refer [make-client page-exists?!]]
+            [md2c8e.confluence :as c8e :refer [make-client]]
             [md2c8e.core :refer [dir->page-tree publish]]
             [md2c8e.links :refer [replace-links]]
             [md2c8e.markdown :as md]
@@ -36,8 +36,7 @@
       confluence-root-url ;; The root URL of the Confluence site, not the root of the REST API.
       username
       password :as _args]]
-  (let [client (make-client confluence-root-url username password)
-        _ (page-exists?! root-page-id client)]
+  (let [client (make-client confluence-root-url username password)]
     (-> (dir->page-tree (file source-dir) root-page-id)
         (replace-links source-dir)
         ; (validate)

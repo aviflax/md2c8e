@@ -65,8 +65,14 @@
 
   ([{:keys [::c8e/page-id ::md/children] :as _root-page} client]
    {:pre [page-id]}
-   (-> (mapcat #(publish % page-id client) children)
-       (doall)))
+   (let [root-page-res (c8e/get-page-by-id page-id client)
+         space-key (get-in root-page-res [:space :key])
+         client' (assoc client ::c8e/space-key space-key)]
+     (when (or (anom root-page-res)
+               (not space-key))
+       (throw (ex-info "Root page does not exist, or seems to be malformed." root-page-res)))
+     (-> (mapcat #(publish % page-id client') children)
+         (doall))))
 
   ([{:keys [::c8e/page-id ::c8e/title ::md/children] :as page} parent-id client]
    {:pre [(nil? page-id)]}

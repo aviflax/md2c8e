@@ -53,7 +53,7 @@
     (fault ::response res
            ::anom/message (get-in res [:body :message]))))
 
-(defn- get-page-by-id
+(defn get-page-by-id
   "Returns the page with the supplied ID, or an ::anom/anomaly.
    The value of ::anom/category will vary depending on the circumstances:
     * :not-found — the page simply doesn’t exist
@@ -68,12 +68,6 @@
            ::response res}
       (response->fault res))))
 
-(defn page-exists?!
-  "Returns nil if the page exists; throws an Exception if it does not."
-  [page-id client]
-  (when-let [res (anom (get-page-by-id page-id client))]
-    (throw (ex-info "Page does not exist!" res))))
-
 (defn- get-page-by-title
   "Get the page with the supplied title, or nil if no such page is found."
   [title space-key {:keys [::req-opts ::url] :as _client}]
@@ -85,19 +79,6 @@
              (<= (count results) 1))
       (first results) ; will either return the page, if present, or nil
       (response->fault res))))
-
-(defonce ^{:private true, :doc "Atom containing a map of page IDs to space keys, for caching."}
-  page-id->space-key
-  (atom {}))
-
-(defn- get-page-space-key
-  [page-id client]
-  (or (get @page-id->space-key page-id)
-      (let [res (get-page-by-id page-id client)
-            key (get-in res [:space :key])]
-        (or (anom res)
-            (do (swap! page-id->space-key assoc page-id key)
-                key)))))
 
 (defn- update-page
   [{id           :id
@@ -116,7 +97,7 @@
         (:body res))))
 
 (defn- create-page
-  [space-key parent-id title body {:keys [::req-opts ::url] :as _client}]
+  [parent-id title body {:keys [::req-opts ::space-key ::url] :as _client}]
   (let [form-params {:type :page
                      :title title
                      :space {:key space-key}
@@ -143,22 +124,18 @@
   that was updated or created. Therefore it probably contains, among other keys, 'id' and 'version'.
   If unsuccessful, returns an ::anom/anomaly with the additional key ::response."
   [{:keys [::title ::body ::md/source] :as _page} parent-id client]
-  (let [space-key-res (get-page-space-key parent-id client)
-        space-key     (when-not (anom space-key-res)
-                        space-key-res)
-        get-res       (when space-key
-                        (get-page-by-title title space-key client))
-        page          (when-not (anom get-res)
-                        get-res)
-        op (cond (or (anom space-key-res) (anom get-res)) :none
-                 page                                     :update
-                 :else                                    :create)
+  {:pre [(some? (::space-key client))]} ; my god let’s just use spec already
+  (let [space-key (::space-key client)
+        get-res   (get-page-by-title title space-key client)
+        page      (when-not (anom get-res) get-res)
+        op (cond (anom get-res) :none
+                 page           :update
+                 :else          :create)
         op-res (case op
                      :update (update-page page title body client)
-                     :create (create-page space-key parent-id title body client)
+                     :create (create-page parent-id title body client)
                      :none)
-        err (or (anom space-key-res)
-                (anom get-res)
+        err (or (anom get-res)
                 (anom op-res))]
     (if err
       (enrich-err err op (::md/fp source) title body)
