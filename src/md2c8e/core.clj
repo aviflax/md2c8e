@@ -67,6 +67,8 @@
 ;; These functions call each other.
 (declare ^:private publish-child publish-children)
 
+(def COUNTER (atom 0))
+
 (defn- publish-child
  [{:keys [::c8e/page-id ::md/children] :as page} parent-id client pool]
  {:pre [(nil? page-id)]}
@@ -76,16 +78,23 @@
    (print-progress page res)
    (if (and success? (seq children))
      (->> (publish-children pool page-id client children)
-          (cons res))
+          (apply concat))
      [res])))
 
 (defn- publish-children
   [pool parent-id client children]
-  (->> (cp/pmap pool #(publish-child % parent-id client pool) children)
-       ;; It’s crucial to block here until all the parallel tasks are complete; otherwise we end up
-       ;; with a deadlock. While I’m not absolutely clear on why, I’ve confirmed this.
-       (doall)
-       (apply concat)))
+  (let [id parent-id
+        n (count children)
+    _ (println (format "ENTER %s -> submitting %s tasks" id n))
+    ; _ (swap! COUNTER + n)
+    start (. System (nanoTime))
+    res (mapv (fn [child] (cp/future pool #(publish-child child parent-id client pool)))
+              children)
+
+       ]
+       (println (format "EXIT %s -> %s ms" id (/ (double (- (. System (nanoTime)) start)) 1000000.0)))
+       res
+       ))
 
 (defn publish
   "Page might have children, which might have children; in other words; it might be a tree. All
@@ -96,4 +105,4 @@
   ([{:keys [::c8e/page-id ::md/children] :as _root-page} client threads]
    {:pre [(some? page-id)]}
    (cp/with-shutdown! [pool (cp/threadpool threads)]
-     (publish-children pool page-id client children))))
+     (mapv deref (publish-children pool page-id client children)))))
