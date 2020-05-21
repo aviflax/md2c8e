@@ -45,8 +45,8 @@
   [^File source-dir root-page-id]
   {:pre [(.isDirectory source-dir)]}
   {::c8e/page-id root-page-id
-   ::md/children (->> (pmap file->page (io/page-files source-dir)) ; using mapv because file->page does IO
-                      (mapv integrate-readme))})
+   ::md/children (->> (pmap file->page (io/page-files source-dir))
+                      (mapv integrate-readme))}) ; using mapv because file->page does IO
 
 (defn validate
   "Returns a sequence of errors. For example, if two pages have the same title, the sequence includes an
@@ -57,9 +57,15 @@
     ::anom/message "TODO: implement validate!!!"}])
 
 (defn publish
-  "Page might have children, which might have children; in other words; it might be a tree. All
+  "WARNING: this uses a naive approach to concurrency: it uses pmap, which is unbounded in terms
+  of the degree of concurrency — the “width”. This is not OK for general usage but it works OK for
+  my team for right now.
+  
+  Page might have children, which might have children; in other words; it might be a tree. All
   pages in the tree, if any, will be upserted.
+  
   The root page must have an id.
+  
   Returns a (flat) sequence of results. Each result will be either a representation of the remote
   page or an ::anom/anomaly."
 
@@ -70,8 +76,9 @@
      (when (or (anom root-page-res)
                (not space-key))
        (throw (ex-info "Root page does not exist, or seems to be malformed." root-page-res)))
-     (-> (mapcat #(publish % space-key page-id client) children)
-         (doall))))
+     (->> (pmap #(publish % space-key page-id client) children)
+          (doall)
+          (mapcat identity))))
 
   ([{:keys [::c8e/page-id ::c8e/title ::md/children] :as page} space-key parent-id client]
    {:pre [(nil? page-id)]}
