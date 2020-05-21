@@ -82,6 +82,8 @@
 (defn- publish-children
   [pool parent-id client children]
   (->> (cp/pmap pool #(publish-child % parent-id client pool) children)
+       ;; It’s crucial to block here until all the parallel tasks are complete; otherwise we end up
+       ;; with a deadlock. While I’m not absolutely clear on why, I’ve confirmed this.
        (doall)
        (apply concat)))
 
