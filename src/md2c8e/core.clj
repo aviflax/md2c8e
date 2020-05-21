@@ -56,6 +56,24 @@
   [{::anom/type :fault
     ::anom/message "TODO: implement validate!!!"}])
 
+(defn- print-progress
+  [{:keys [::c8e/title] :as _page} res]
+  (println (str (if (anom res)  "🚨 " "✅ ")
+                title
+                (when-let [op (::c8e/operation res)]
+                  (str " (" (name op) ")")))))
+
+(defn- publish-child
+ [{:keys [::c8e/page-id ::md/children] :as page} parent-id client]
+ {:pre [(nil? page-id)]}
+ (let [res (upsert page parent-id client)
+       page-id (get-in res [::c8e/page :id])
+       success? (some? page-id)]
+   (print-progress page res)
+   (if (and success? (seq children))
+     (doall (mapcat #(publish-child % page-id client) children))
+     [res])))
+
 (defn publish
   "WARNING: this uses a naive approach to concurrency: it uses pmap, which is unbounded in terms
   of the degree of concurrency — the “width”. This is not OK for general usage but it works OK for
@@ -69,27 +87,14 @@
   Returns a (flat) sequence of results. Each result will be either a representation of the remote
   page or an ::anom/anomaly."
 
-  ([{:keys [::c8e/page-id ::md/children] :as _root-page} client]
-   {:pre [page-id]}
-   (let [root-page-res (c8e/get-page-by-id page-id client)
-         space-key (get-in root-page-res [:space :key])
-         client' (assoc client ::c8e/space-key space-key)]
-     (when (or (anom root-page-res)
-               (not space-key))
-       (throw (ex-info "Root page does not exist, or seems to be malformed." root-page-res)))
-     (->> (pmap #(publish % page-id client') children)
-          (doall)
-          (mapcat identity))))
-
-  ([{:keys [::c8e/page-id ::c8e/title ::md/children] :as page} parent-id client]
-   {:pre [(nil? page-id)]}
-   (let [result (upsert page parent-id client)
-         page-id (get-in result [::c8e/page :id])
-         succeeded? (some? page-id)]
-     (println (str (if (anom result)  "🚨 " "✅ ")
-                   title
-                   (when-let [op (::c8e/operation result)]
-                     (str " (" (name op) ")"))))
-     (if (and succeeded? (seq children))
-       (doall (mapcat #(publish % page-id client) children))
-       [result]))))
+  [{:keys [::c8e/page-id ::md/children] :as _root-page} client]
+  {:pre [(some? page-id)]}
+  (let [root-page-res (c8e/get-page-by-id page-id client)
+        space-key (get-in root-page-res [:space :key])
+        client' (assoc client ::c8e/space-key space-key)]
+    (when (or (anom root-page-res)
+              (not space-key))
+      (throw (ex-info "Root page does not exist, or seems to be malformed." root-page-res)))
+    (->> (pmap #(publish-child % page-id client') children)
+         (doall)
+         (mapcat identity))))
