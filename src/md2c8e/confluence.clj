@@ -80,6 +80,12 @@
       (first results) ; will either return the page, if present, or nil
       (response->fault res))))
 
+(defn- exception->fault
+  [e]
+  (merge (ex-data e)
+         (fault ::anom/message (str e)
+                :exception e)))
+
 (defn- update-page
   [{id           :id
     {vn :number} :version :as _current-page}
@@ -91,9 +97,11 @@
                      :type :page
                      :title title
                      :body {:storage {:value body, :representation :storage}}}
-        res (hc/put (url :content id)
-                    (assoc req-opts :content-type :json, :form-params form-params))]
-    (or (response->fault res)
+        res (try (hc/put (url :content id)
+                         (assoc req-opts :content-type :json, :form-params form-params))
+                 (catch Exception e (exception->fault e)))]
+    (or (anom res)
+        (response->fault res)
         (:body res))))
 
 (defn- create-page
@@ -103,9 +111,11 @@
                      :space {:key space-key}
                      :body {:storage {:value body, :representation :storage}}
                      :ancestors [{:type :page :id parent-id}]}
-        res (hc/post (url :content)
-                     (assoc req-opts :content-type :json, :form-params form-params))]
-     (or (response->fault res)
+        res (try (hc/post (url :content)
+                          (assoc req-opts :content-type :json, :form-params form-params))
+                 (catch Exception e (exception->fault e)))]
+     (or (anom res)
+         (response->fault res)
          (:body res))))
 
 (defn- enrich-err
