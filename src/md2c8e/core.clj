@@ -68,9 +68,9 @@
    {:pre [page-id]}
    (cp/with-shutdown! [pool (cp/threadpool threads)] ;; TODO: SHUT DOWN THE THREADPOOL
      ;; TODO: maybe specify a timeout and timeout value?
-     (->> (mapv #(cp/future pool (publish % page-id client pool)) children)
-          (mapv deref)
-          (concat))))
+     (->> (cp/pmap pool #(publish % page-id client pool) children)
+          (doall)
+          (apply concat))))
 
   ([{:keys [::c8e/page-id ::c8e/title ::md/children] :as page} parent-id client pool]
    {:pre [(nil? page-id)]}
