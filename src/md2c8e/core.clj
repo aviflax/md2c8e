@@ -83,6 +83,7 @@
                      (str " (" (name op) ")"))))
      (if (and succeeded? (seq children))
        (->> (cp/pmap pool #(publish % page-id client pool) children)
+            (doall)
             (apply concat)
             (cons result))
        [result]))))
