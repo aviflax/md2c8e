@@ -25,21 +25,6 @@
       s
       (str s "/")))
 
-(defn make-client
-  [confluence-root-url username password]
-  {::confluence-root-url confluence-root-url
-   ::url (partial api-url (ensure-trailing-slash confluence-root-url))
-   ::req-opts {:http-client (hc/build-http-client {:connect-timeout (:connect-timeout constants)
-                                                   :redirect-policy :never
-                                                   :version :http-1.1
-                                                   :cookie-policy :none})
-               :accept :json
-               :as :json
-               :basic-auth {:user username, :pass password}
-               :coerce :always
-               :timeout (:request-timeout constants)
-               :throw-exceptions? true}})
-
 (defn- exception->fault
   [e]
   (let [res (ex-data e)]
@@ -50,35 +35,50 @@
            (when-let [msg (and (map? res) (get-in res [:body :message]))]
              {::anom/message msg}))))
 
-(defn- req
-  [f uri opts]
-  (try (f uri opts)
-       (catch Exception e (exception->fault e))))
+(defn make-client
+  [confluence-root-url username password]
+  (let [urlf        (partial api-url (ensure-trailing-slash confluence-root-url))
+        http-client (hc/build-http-client {:connect-timeout (:connect-timeout constants)
+                                           :redirect-policy :never
+                                           :version :http-1.1
+                                           :cookie-policy :none})
+        base-req-opts {:http-client http-client
+                       :accept :json
+                       :as :json
+                       :basic-auth {:user username, :pass password}
+                       :coerce :always
+                       :timeout (:request-timeout constants)
+                       :throw-exceptions? true}]
+  ; The first two are just for reference, debugging, etc.
+  {::base-req-opts base-req-opts
+   ::confluence-root-url confluence-root-url
+   ::req (fn [method url-segments first-opt-key first-opt-val & more-opts]
+           (try (hc/request (-> (apply assoc base-req-opts first-opt-key first-opt-val more-opts)
+                                (assoc :request-method method
+                                       :url (apply urlf url-segments))))
+                (catch Exception e (exception->fault e))))}))
 
 (defn get-page-by-id
   "Returns the page with the supplied ID, or an ::anom/anomaly.
    The value of ::anom/category will vary depending on the circumstances:
     * :not-found — the page simply doesn’t exist
     * :fault — something went wrong"
-  [page-id {:keys [::req-opts ::url] :as _client}]
-  (let [params {:expand "version,space"}
-        res (req hc/get (url :content page-id) (assoc req-opts :query-params params))
+  [page-id {:keys [::req] :as _client}]
+  (let [res (req :get [:content page-id] :query-params {:expand "version,space"})
         not-found? (and (anom res) (= (get-in res [::response :status]) 404))]
-    ;; check not-found? first, because in that case res will be an anom; it’s a special case
-      
-      (cond
-        not-found? {::anom/category :not-found
-                    ::anom/message (format "No page with ID %s exists" page-id)
-                    ::page-id page-id
-                    ::response (::response res)}
-        (anom res) res
-        :else (:body res))))
+    (cond
+      ;; check not-found? first, because in that (special) case res will be an anom as well
+      not-found? {::anom/category :not-found
+                  ::anom/message (format "No page with ID %s exists" page-id)
+                  ::page-id page-id
+                  ::response (::response res)}
+      (anom res) res
+      :else (:body res))))
 
 (defn- get-page-by-title
   "Get the page with the supplied title, or nil if no such page is found."
-  [title space-key {:keys [::req-opts ::url] :as _client}]
-  (let [params {:spaceKey space-key :title title :expand "version"}
-        res (req hc/get (url :content) (assoc req-opts :query-params params))
+  [title space-key {:keys [::req] :as _client}]
+  (let [res (req :get [:content] :query-params {:spaceKey space-key :title title :expand "version"})
         results (get-in res [:body :results])]
     (cond (anom res)            res
           (not (coll? results)) (fault ::response res ::anom/message "Search results malformed")
@@ -90,28 +90,24 @@
     {vn :number} :version :as _current-page}
    title
    body
-   {:keys [::req-opts ::url] :as _client}]
+   {:keys [::req] :as _client}]
   {:pre [(number? vn)]}
   (let [form-params {:version {:number (inc vn)}
                      :type :page
                      :title title
                      :body {:storage {:value body, :representation :storage}}}
-        res (req hc/put
-                 (url :content id)
-                 (assoc req-opts :content-type :json, :form-params form-params))]
+        res (req :put [:content id] :content-type :json, :form-params form-params)]
     (or (anom res)
         (:body res))))
 
 (defn- create-page
-  [parent-id title body {:keys [::req-opts ::space-key ::url] :as _client}]
+  [parent-id title body {:keys [::req ::space-key] :as _client}]
   (let [form-params {:type :page
                      :title title
                      :space {:key space-key}
                      :body {:storage {:value body, :representation :storage}}
                      :ancestors [{:type :page :id parent-id}]}
-        res (req hc/post
-                 (url :content)
-                 (assoc req-opts :content-type :json, :form-params form-params))]
+        res (req :post [:content] :content-type :json, :form-params form-params)]
      (or (anom res)
          (:body res))))
 
