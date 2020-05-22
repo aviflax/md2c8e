@@ -3,7 +3,8 @@
             [clojure.walk :as walk]
             [md2c8e.confluence :as c8e]
             [md2c8e.markdown :as md]
-            [md2c8e.paths :as paths :refer [path relative-path]]))
+            [md2c8e.paths :as paths :refer [path relative-path]])
+  (:import [java.net URI]))
 
 (defn- page?
   [v]
@@ -34,10 +35,17 @@
       (.normalize)
       (->> (.relativize base))))
 
+(def href-pattern
+  "Extracts the URL from an HTML link."
+  #"href=\"(.+)\"")
+
 (defn- has-scheme?
   "We don’t want to even try to replace links that start with a scheme, such as http, mailto, etc."
   [html]
-  (boolean (re-seq #"href=\".+:.+\"" html)))
+  (some? (some-> (re-find href-pattern html)
+                 (second)
+                 (URI.)
+                 (.getScheme))))
 
 (defn- link->c8e
   "Given an HTML link such as <a href='url'>text</a> returns a Confluence link such as:
@@ -55,7 +63,7 @@
   [html sfp base-path lookup]
   (if (has-scheme? html)
     html
-    (let [href (some-> (re-find #"href=\"(.+)\"" html) second)
+    (let [href (some-> (re-find href-pattern html) second)
           body (some-> (re-find #">(.+)<" html) second)
           resolved (resolve-link href sfp base-path)
           target-title (get lookup resolved)]
