@@ -22,6 +22,20 @@
                     (path "technologies") "Technologies"}]
       (is (= expected (#'links/page-titles-by-path pt source-dir))))))
 
+(deftest test-has-scheme?
+  (are [expected given] (= expected (#'links/has-scheme? given))
+    false "<a href=\"foo.md\">"
+    false "<a href=\"../../../foo.md\">"
+    false "<a href=\"../../\">"
+    false "<a href=\"../\">"
+    false "<a href=\"..\">"
+    false "<a href=\"\">"
+    true "<a href=\"http://zombo.com/\">"
+    true "<a href=\"http://zombo.com\">"
+    true "<a href=\"https://zombo.com\">"
+    true "<a href=\"mailto:zombo@zombo.com\">"
+    true "<a href=\"http:/zombo.com\">"))
+
 (deftest test-link->c8e
   (testing "Links to URLs that specify protocols (schemes) should be passed through untouched."
     (are [expected given] (= expected (#'links/link->c8e given nil nil nil))
