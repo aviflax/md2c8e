@@ -38,26 +38,22 @@
                :basic-auth {:user username, :pass password}
                :coerce :always
                :timeout (:request-timeout constants)
-               :throw-exceptions? false}})
-
-(defn- successful?
-  [{status :status :as _response}]
-  (and (number? status)
-       (<= 200 status 206)))
-
-(defn- response->fault
-  "If the response represents an unsuccessful, error, or failed request, wraps it in an
-  ::anom/anomaly and returns it. Otherwise returns nil."
-  [res]
-  (when-not (successful? res)
-    (fault ::response res
-           ::anom/message (and (map? res) (get-in res [:body :message])))))
+               :throw-exceptions? true}})
 
 (defn- exception->fault
   [e]
-  (merge (ex-data e)
-         (fault ::anom/message (str e)
-                :exception e)))
+  (let [res (ex-data e)]
+    (merge (fault ::anom/message (str e)
+                  ::exception e)
+           (when res
+             {::response res})
+           (when-let [msg (and (map? res) (get-in res [:body :message]))]
+             {::anom/message msg}))))
+
+(defn- req
+  [f uri opts]
+  (try (f uri opts)
+       (catch Exception e (exception->fault e))))
 
 (defn- get-page-by-id
   "Returns the page with the supplied ID, or an ::anom/anomaly.
@@ -65,16 +61,18 @@
     * :not-found — the page simply doesn’t exist
     * :fault — something went wrong"
   [page-id {:keys [::req-opts ::url] :as _client}]
-  (let [res (try (hc/get (url :content page-id) (assoc req-opts :query-params {:expand "version,space"}))
-                 (catch Exception e (exception->fault e)))]
-    (or (anom res)
-        (case (:status res)
-          200 (:body res)
-          404 {::anom/category :not-found
-               ::anom/message (format "No page with ID %s exists" page-id)
-               ::page-id page-id
-               ::response res}
-          (response->fault res)))))
+  (let [params {:expand "version,space"}
+        res (req hc/get (url :content page-id) (assoc req-opts :query-params params))
+        not-found? (and (anom res) (= (get-in res [::response :status]) 404))]
+    ;; check not-found? first, because in that case res will be an anom; it’s a special case
+      
+      (cond
+        not-found? {::anom/category :not-found
+                    ::anom/message (format "No page with ID %s exists" page-id)
+                    ::page-id page-id
+                    ::response (::response res)}
+        (anom res) res
+        :else (:body res))))
 
 (defn page-exists?!
   "Returns nil if the page exists; throws an Exception if it does not."
@@ -85,16 +83,13 @@
 (defn- get-page-by-title
   "Get the page with the supplied title, or nil if no such page is found."
   [title space-key {:keys [::req-opts ::url] :as _client}]
-  (let [res (try (hc/get (url :content) (assoc req-opts :query-params {:spaceKey space-key
-                                                                       :title title
-                                                                       :expand "version"}))
-                 (catch Exception e (exception->fault e)))
+  (let [params {:spaceKey space-key :title title :expand "version"}
+        res (req hc/get (url :content) (assoc req-opts :query-params params))
         results (get-in res [:body :results])]
-    (or (anom res)
-        (if (and (= (:status res) 200)
-                 (<= (count results) 1))
-          (first results) ; will either return the page, if present, or nil
-          (response->fault res)))))
+    (cond (anom res)            res
+          (not (coll? results)) (fault ::response res ::anom/message "Search results malformed")
+          (> (count results) 1) (fault ::response res ::anom/message "Too many search results")
+          :else                 (first results))))
 
 (defonce ^{:private true, :doc "Atom containing a map of page IDs to space keys, for caching."}
   page-id->space-key
@@ -119,11 +114,10 @@
                      :type :page
                      :title title
                      :body {:storage {:value body, :representation :storage}}}
-        res (try (hc/put (url :content id)
-                         (assoc req-opts :content-type :json, :form-params form-params))
-                 (catch Exception e (exception->fault e)))]
+        res (req hc/put
+                 (url :content id)
+                 (assoc req-opts :content-type :json, :form-params form-params))]
     (or (anom res)
-        (response->fault res)
         (:body res))))
 
 (defn- create-page
@@ -133,11 +127,10 @@
                      :space {:key space-key}
                      :body {:storage {:value body, :representation :storage}}
                      :ancestors [{:type :page :id parent-id}]}
-        res (try (hc/post (url :content)
-                          (assoc req-opts :content-type :json, :form-params form-params))
-                 (catch Exception e (exception->fault e)))]
+        res (req hc/post
+                 (url :content)
+                 (assoc req-opts :content-type :json, :form-params form-params))]
      (or (anom res)
-         (response->fault res)
          (:body res))))
 
 (defn- enrich-err
