@@ -51,7 +51,13 @@
   [res]
   (when-not (successful? res)
     (fault ::response res
-           ::anom/message (get-in res [:body :message]))))
+           ::anom/message (and (map? res) (get-in res [:body :message])))))
+
+(defn- exception->fault
+  [e]
+  (merge (ex-data e)
+         (fault ::anom/message (str e)
+                :exception e)))
 
 (defn get-page-by-id
   "Returns the page with the supplied ID, or an ::anom/anomaly.
@@ -59,32 +65,30 @@
     * :not-found — the page simply doesn’t exist
     * :fault — something went wrong"
   [page-id {:keys [::req-opts ::url] :as _client}]
-  (let [res (hc/get (url :content page-id) (assoc req-opts :query-params {:expand "version,space"}))]
-    (case (:status res)
-      200 (:body res)
-      404 {::anom/category :not-found
-           ::anom/message (format "No page with ID %s exists" page-id)
-           ::page-id page-id
-           ::response res}
-      (response->fault res))))
+  (let [res (try (hc/get (url :content page-id) (assoc req-opts :query-params {:expand "version,space"}))
+                 (catch Exception e (exception->fault e)))]
+    (or (anom res)
+        (case (:status res)
+          200 (:body res)
+          404 {::anom/category :not-found
+               ::anom/message (format "No page with ID %s exists" page-id)
+               ::page-id page-id
+               ::response res}
+          (response->fault res)))))
 
 (defn- get-page-by-title
   "Get the page with the supplied title, or nil if no such page is found."
   [title space-key {:keys [::req-opts ::url] :as _client}]
-  (let [res (hc/get (url :content) (assoc req-opts :query-params {:spaceKey space-key
-                                                                  :title title
-                                                                  :expand "version"}))
+  (let [res (try (hc/get (url :content) (assoc req-opts :query-params {:spaceKey space-key
+                                                                       :title title
+                                                                       :expand "version"}))
+                 (catch Exception e (exception->fault e)))
         results (get-in res [:body :results])]
-    (if (and (= (:status res) 200)
-             (<= (count results) 1))
-      (first results) ; will either return the page, if present, or nil
-      (response->fault res))))
-
-(defn- exception->fault
-  [e]
-  (merge (ex-data e)
-         (fault ::anom/message (str e)
-                :exception e)))
+    (or (anom res)
+        (if (and (= (:status res) 200)
+                 (<= (count results) 1))
+          (first results) ; will either return the page, if present, or nil
+          (response->fault res)))))
 
 (defn- update-page
   [{id           :id
