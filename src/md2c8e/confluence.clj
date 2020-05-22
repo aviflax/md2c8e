@@ -25,48 +25,55 @@
       s
       (str s "/")))
 
+(defn- exception->fault
+  [e]
+  (let [res (ex-data e)]
+    (merge (fault ::anom/message (str e)
+                  ::exception e)
+           (when res
+             {::response res})
+           (when-let [msg (and (map? res) (get-in res [:body :message]))]
+             {::anom/message msg}))))
+
 (defn make-client
   [confluence-root-url username password]
-  {::confluence-root-url confluence-root-url
-   ::url (partial api-url (ensure-trailing-slash confluence-root-url))
-   ::req-opts {:http-client (hc/build-http-client {:connect-timeout (:connect-timeout constants)
-                                                   :redirect-policy :never
-                                                   :version :http-1.1
-                                                   :cookie-policy :none})
-               :accept :json
-               :as :json
-               :basic-auth {:user username, :pass password}
-               :coerce :always
-               :timeout (:request-timeout constants)
-               :throw-exceptions? false}})
-
-(defn- successful?
-  [{status :status :as _response}]
-  (and (number? status)
-       (<= 200 status 206)))
-
-(defn- response->fault
-  "If the response represents an unsuccessful, error, or failed request, wraps it in an
-  ::anom/anomaly and returns it. Otherwise returns nil."
-  [res]
-  (when-not (successful? res)
-    (fault ::response res
-           ::anom/message (get-in res [:body :message]))))
+  (let [urlf        (partial api-url (ensure-trailing-slash confluence-root-url))
+        http-client (hc/build-http-client {:connect-timeout (:connect-timeout constants)
+                                           :redirect-policy :never
+                                           :version :http-1.1
+                                           :cookie-policy :none})
+        base-req-opts {:http-client http-client
+                       :accept :json
+                       :as :json
+                       :basic-auth {:user username, :pass password}
+                       :coerce :always
+                       :timeout (:request-timeout constants)
+                       :throw-exceptions? true}]
+  ; The first two are just for reference, debugging, etc.
+  {::base-req-opts base-req-opts
+   ::confluence-root-url confluence-root-url
+   ::req (fn [method url-segments first-opt-key first-opt-val & more-opts]
+           (try (hc/request (-> (apply assoc base-req-opts first-opt-key first-opt-val more-opts)
+                                (assoc :request-method method
+                                       :url (apply urlf url-segments))))
+                (catch Exception e (exception->fault e))))}))
 
 (defn- get-page-by-id
   "Returns the page with the supplied ID, or an ::anom/anomaly.
    The value of ::anom/category will vary depending on the circumstances:
     * :not-found — the page simply doesn’t exist
     * :fault — something went wrong"
-  [page-id {:keys [::req-opts ::url] :as _client}]
-  (let [res (hc/get (url :content page-id) (assoc req-opts :query-params {:expand "version,space"}))]
-    (case (:status res)
-      200 (:body res)
-      404 {::anom/category :not-found
-           ::anom/message (format "No page with ID %s exists" page-id)
-           ::page-id page-id
-           ::response res}
-      (response->fault res))))
+  [page-id {:keys [::req] :as _client}]
+  (let [res (req :get [:content page-id] :query-params {:expand "version,space"})
+        not-found? (and (anom res) (= (get-in res [::response :status]) 404))]
+    (cond
+      ;; check not-found? first, because in that (special) case res will be an anom as well
+      not-found? {::anom/category :not-found
+                  ::anom/message (format "No page with ID %s exists" page-id)
+                  ::page-id page-id
+                  ::response (::response res)}
+      (anom res) res
+      :else (:body res))))
 
 (defn page-exists?!
   "Returns nil if the page exists; throws an Exception if it does not."
@@ -76,15 +83,13 @@
 
 (defn- get-page-by-title
   "Get the page with the supplied title, or nil if no such page is found."
-  [title space-key {:keys [::req-opts ::url] :as _client}]
-  (let [res (hc/get (url :content) (assoc req-opts :query-params {:spaceKey space-key
-                                                                  :title title
-                                                                  :expand "version"}))
+  [title space-key {:keys [::req] :as _client}]
+  (let [res (req :get [:content] :query-params {:spaceKey space-key :title title :expand "version"})
         results (get-in res [:body :results])]
-    (if (and (= (:status res) 200)
-             (<= (count results) 1))
-      (first results) ; will either return the page, if present, or nil
-      (response->fault res))))
+    (cond (anom res)            res
+          (not (coll? results)) (fault ::response res ::anom/message "Search results malformed")
+          (> (count results) 1) (fault ::response res ::anom/message "Too many search results")
+          :else                 (first results))))
 
 (defonce ^{:private true, :doc "Atom containing a map of page IDs to space keys, for caching."}
   page-id->space-key
@@ -103,27 +108,25 @@
     {vn :number} :version :as _current-page}
    title
    body
-   {:keys [::req-opts ::url] :as _client}]
+   {:keys [::req] :as _client}]
   {:pre [(number? vn)]}
   (let [form-params {:version {:number (inc vn)}
                      :type :page
                      :title title
                      :body {:storage {:value body, :representation :storage}}}
-        res (hc/put (url :content id)
-                    (assoc req-opts :content-type :json, :form-params form-params))]
-    (or (response->fault res)
+        res (req :put [:content id] :content-type :json, :form-params form-params)]
+    (or (anom res)
         (:body res))))
 
 (defn- create-page
-  [space-key parent-id title body {:keys [::req-opts ::url] :as _client}]
+  [space-key parent-id title body {:keys [::req] :as _client}]
   (let [form-params {:type :page
                      :title title
                      :space {:key space-key}
                      :body {:storage {:value body, :representation :storage}}
                      :ancestors [{:type :page :id parent-id}]}
-        res (hc/post (url :content)
-                     (assoc req-opts :content-type :json, :form-params form-params))]
-     (or (response->fault res)
+        res (req :post [:content] :content-type :json, :form-params form-params)]
+     (or (anom res)
          (:body res))))
 
 (defn- enrich-err
