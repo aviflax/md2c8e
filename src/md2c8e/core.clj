@@ -66,17 +66,16 @@
   ([{:keys [::c8e/page-id ::md/children] :as _root-page} client]
    {:pre [page-id]}
    (let [root-page-res (c8e/get-page-by-id page-id client)
-         space-key (get-in root-page-res [:space :key])
-         client' (assoc client ::c8e/space-key space-key)]
+         space-key (get-in root-page-res [:space :key])]
      (when (or (anom root-page-res)
                (not space-key))
        (throw (ex-info "Root page does not exist, or seems to be malformed." root-page-res)))
-     (-> (mapcat #(publish % page-id client') children)
+     (-> (mapcat #(publish % space-key page-id client) children)
          (doall))))
 
-  ([{:keys [::c8e/page-id ::c8e/title ::md/children] :as page} parent-id client]
+  ([{:keys [::c8e/page-id ::c8e/title ::md/children] :as page} space-key parent-id client]
    {:pre [(nil? page-id)]}
-   (let [result (upsert page parent-id client)
+   (let [result (upsert page space-key parent-id client)
          page-id (get-in result [::c8e/page :id])
          succeeded? (some? page-id)]
      (println (str (if (anom result)  "🚨 " "✅ ")
@@ -84,5 +83,5 @@
                    (when-let [op (::c8e/operation result)]
                      (str " (" (name op) ")"))))
      (if (and succeeded? (seq children))
-       (doall (mapcat #(publish % page-id client) children))
+       (doall (mapcat #(publish % space-key page-id client) children))
        [result]))))

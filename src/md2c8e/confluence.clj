@@ -97,7 +97,7 @@
         (:body res))))
 
 (defn- create-page
-  [parent-id title body {:keys [::req-opts ::space-key ::url] :as _client}]
+  [space-key parent-id title body {:keys [::req-opts ::url] :as _client}]
   (let [form-params {:type :page
                      :title title
                      :space {:key space-key}
@@ -123,17 +123,15 @@
   If successful, returns a map with [::operation ::page]. ::page is a representation of the page
   that was updated or created. Therefore it probably contains, among other keys, 'id' and 'version'.
   If unsuccessful, returns an ::anom/anomaly with the additional key ::response."
-  [{:keys [::title ::body ::md/source] :as _page} parent-id client]
-  {:pre [(some? (::space-key client))]} ; my god let’s just use spec already
-  (let [space-key (::space-key client)
-        get-res   (get-page-by-title title space-key client)
+  [{:keys [::title ::body ::md/source] :as _page} space-key parent-id client]
+  (let [get-res   (get-page-by-title title space-key client)
         page      (when-not (anom get-res) get-res)
         op (cond (anom get-res) :none
                  page           :update
                  :else          :create)
         op-res (case op
                      :update (update-page page title body client)
-                     :create (create-page parent-id title body client)
+                     :create (create-page space-key parent-id title body client)
                      :none)
         err (or (anom get-res)
                 (anom op-res))]
