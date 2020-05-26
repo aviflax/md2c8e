@@ -10,7 +10,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
-      - uses: actions/cache@bac1a40c # We need a not-yet-released feature: https://git.io/JfBDh
+      - uses: actions/cache@v2
         env: { cache-version: v4 }
         with:
           path: |
