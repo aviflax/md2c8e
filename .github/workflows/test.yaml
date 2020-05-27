@@ -1,72 +1,27 @@
 name: Test
-
 on: push
-
-# Each test suite will have its own job so they can run concurrently. (Our test runner, Kaocha,
-# doesn’t currently support concurrency.)
 jobs:
-  examples:
-    runs-on: ubuntu-18.04
-
-    # I tried using a Docker container but the one I used didn’t work well with the cache action,
-    # and honestly it’s not that hard to install and cache Clojure.
-
+  Kaocha:
+    strategy:
+      matrix:
+        os: [macos-10.15, ubuntu-18.04]
+        java: [11, 13, 14]
+        suite: [examples] # Our other suites (integration, properties) are empty — for now!
+    runs-on: ${{ matrix.os }}
     steps:
-      - name: Check out the repo
-        uses: actions/checkout@v2
-
-      - name: Set up Java
-        uses: actions/setup-java@v1
+      - uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        env: { cache-version: v4 }
         with:
-          java-version: '11.0.7'
+          path: |
+            .cpcache
+            ~/.m2
+            ~/.gitlibs
+          key: ${{ runner.os }}-${{ github.workflow }}-${{ env.cache-version }}-${{ hashFiles('deps.edn') }}
+      - uses: actions/setup-java@v1
+        with:
+          java-version: ${{ matrix.java }}
           java-package: jre
-
-      # actions/cache@v2, which should be released in Spring or Summer 2020, will include support for
-      # multiple paths, so we’ll be able to merge all these cache steps into a single step.
-      # See https://github.com/actions/cache/pull/212 and
-      # https://github.com/actions/cache/issues/288#issuecomment-627478569
-
-      - name: Cache Clojure CLI Tools
-        id: cache-clojure-cli-tools
-        uses: actions/cache@v1
-        env:
-          # The version suffix is used if/when we need to bust the cache “manually”, in which case we
-          # increment it.
-          cache-name: cache-clojure-cli-tools-v4
-        with:
-          path: ~/clojure-tools
-          key: ${{ runner.os }}-${{ github.workflow }}-${{ env.cache-name }}-${{ hashFiles('deps.edn') }}
-
-      - name: Cache libraries downloaded via Maven
-        uses: actions/cache@v1
-        env:
-          # The version suffix is used if/when we need to bust the cache “manually”, in which case we
-          # increment it.
-          cache-name: cache-maven-libraries-v3
-        with:
-          path: ~/.m2
-          key: ${{ runner.os }}-${{ github.workflow }}-${{ env.cache-name }}-${{ hashFiles('deps.edn') }}
-
-      - name: Cache libraries downloaded via Git
-        uses: actions/cache@v1
-        env:
-          # The version suffix is used if/when we need to bust the cache “manually”, in which case we
-          # increment it.
-          cache-name: cache-git-libraries-v3
-        with:
-          path: ~/.gitlibs
-          key: ${{ runner.os }}-${{ github.workflow }}-${{ env.cache-name }}-${{ hashFiles('deps.edn') }}
-
-      - name: Install Clojure CLI Tools
-        if: steps.cache-clojure-cli-tools.outputs.cache-hit != 'true'
-        run: |
-          # Steps found at https://clojure.org/guides/getting_started#_installation_on_linux
-          curl -O https://download.clojure.org/install/linux-install-1.10.1.536.sh
-          chmod +x linux-install-1.10.1.536.sh
-          # I added the --prefix option below; it makes it easier to cache the tools
-          sudo ./linux-install-1.10.1.536.sh --prefix ~/clojure-tools
-
-      - name: Run the test suite (and download deps first, if necessary)
-        run: |
-          export PATH="$PATH:/home/runner/clojure-tools/bin"
-          bin/kaocha examples
+      - uses: DeLaGuardo/setup-clojure@2.0
+        with: { tools-deps: '1.10.1.502' }
+      - run: bin/kaocha ${{ matrix.suite }}
