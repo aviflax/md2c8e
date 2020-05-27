@@ -65,14 +65,15 @@
                   (str " (" (name op) ")")))))
 
 (defn- publish-child
- [{:keys [::c8e/page-id ::md/children] :as page} space-key parent-id client]
+ [{:keys [::c8e/page-id ::md/children] :as page} space-key parent-id client pool]
  {:pre [(nil? page-id)]}
  (let [res (upsert page space-key parent-id client)
        page-id (get-in res [::c8e/page :id])
        success? (some? page-id)]
    (print-progress page res)
    (if (and success? (seq children))
-     (doall (mapcat #(publish-child % space-key page-id client) children))
+     (->> (cp/pmap pool #(publish-child % space-key page-id client pool) children)
+          (concat [res]))
      [res])))
 
 (defn publish
@@ -98,6 +99,7 @@
     (when (or (anom root-page-res)
               (not space-key))
       (throw (ex-info "Root page does not exist, or seems to be malformed." root-page-res)))
-    (->> (cp/pmap threads #(publish-child % space-key page-id client) children)
-         (doall)
-         (mapcat identity))))
+    (cp/with-shutdown! [pool (cp/pool threads)]
+      (->> (cp/pmap pool #(publish-child % space-key page-id client pool) children)
+           (doall)
+           (mapcat identity)))))
