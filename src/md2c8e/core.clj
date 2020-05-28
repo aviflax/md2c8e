@@ -99,7 +99,7 @@
     (when (or (anom root-page-res)
               (not space-key))
       (throw (ex-info "Root page does not exist, or seems to be malformed." root-page-res)))
-    (cp/with-shutdown! [pool (cp/pool threads)]
+    (cp/with-shutdown! [pool (cp/threadpool threads)]
       (->> (cp/pmap pool #(publish-child % space-key page-id client pool) children)
            (doall)
-           (mapcat identity)))))
+           (mapv concat)))))
