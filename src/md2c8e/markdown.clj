@@ -1,7 +1,8 @@
 (ns md2c8e.markdown
-  (:require [clojure.java.shell :as shell]
-            [clojure.string :as str])
-  (:import [java.io File]))
+  (:require [clojure.string :as str])
+  (:import [java.io File]
+    [org.commonmark.parser Parser]
+    [org.commonmark.renderer.html HtmlRenderer]))
 
 (def md-h1-pattern #"(?m)^# (.+)$")
 
@@ -24,9 +25,11 @@
 
 (defn- markdown->html
   [md]
-  (let [res (shell/sh "pandoc" "--from=gfm" "--to=html4" :in md)]
-    ;; TODO: Handle errors! Check the results! :facepalm:
-    (:out res)))
+  (let [parser (.build (Parser/builder))
+        doc (.parse parser md)
+        renderer (.build (HtmlRenderer/builder))
+        res (.render renderer doc)]
+    res))
 
 (defn prep-content
   [md]
