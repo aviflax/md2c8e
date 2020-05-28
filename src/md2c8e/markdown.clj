@@ -23,12 +23,24 @@
   [^String md]
   (str/replace md md-h1-pattern ""))
 
+(def parser-cache (atom nil))
+
+(defn- parser
+  []
+  (or @parser-cache
+      (reset! parser-cache (.build (Parser/builder)))))
+
+(def renderer-cache (atom nil))
+
+(defn- renderer
+  []
+  (or @renderer-cache
+      (reset! renderer-cache (.build (HtmlRenderer/builder)))))
+
 (defn- markdown->html
   [md]
-  (let [parser (.build (Parser/builder))
-        doc (.parse parser md)
-        renderer (.build (HtmlRenderer/builder))
-        res (.render renderer doc)]
+  (let [doc (.parse (parser) md)
+        res (.render (renderer) doc)]
     res))
 
 (defn prep-content
