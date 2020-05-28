@@ -1,12 +1,12 @@
 (ns md2c8e.markdown
   (:require [clojure.string :as str])
   (:import [java.io File]
-    [org.commonmark.parser Parser]
-    [org.commonmark.renderer.html HtmlRenderer]
-    [org.commonmark.ext.autolink AutolinkExtension]
-    [org.commonmark.ext.gfm.headinganchor HeadingAnchorExtension]
-    [org.commonmark.ext.gfm.strikethrough StrikethroughExtension]
-    [org.commonmark.ext.gfm.tables TablesExtension]))
+           [org.commonmark.parser Parser]
+           [org.commonmark.renderer.html HtmlRenderer]
+           [org.commonmark.ext.autolink AutolinkExtension]
+           [org.commonmark.ext.heading.anchor HeadingAnchorExtension]
+           [org.commonmark.ext.gfm.strikethrough StrikethroughExtension]
+           [org.commonmark.ext.gfm.tables TablesExtension]))
 
 (def md-h1-pattern #"(?m)^# (.+)$")
 
