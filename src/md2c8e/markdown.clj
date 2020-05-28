@@ -52,9 +52,8 @@
 
 (defn- markdown->html
   [md]
-  (let [doc (.parse (parser) md)
-        res (.render (renderer) doc)]
-    res))
+  (->> (.parse (parser) md)
+       (.render (renderer))))
 
 (defn prep-content
   [md]
