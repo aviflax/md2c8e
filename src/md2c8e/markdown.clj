@@ -1,7 +1,12 @@
 (ns md2c8e.markdown
-  (:require [clojure.java.shell :as shell]
-            [clojure.string :as str])
-  (:import [java.io File]))
+  (:require [clojure.string :as str])
+  (:import [java.io File]
+           [org.commonmark.parser Parser]
+           [org.commonmark.renderer.html HtmlRenderer]
+           [org.commonmark.ext.autolink AutolinkExtension]
+           [org.commonmark.ext.heading.anchor HeadingAnchorExtension]
+           [org.commonmark.ext.gfm.strikethrough StrikethroughExtension]
+           [org.commonmark.ext.gfm.tables TablesExtension]))
 
 (def md-h1-pattern #"(?m)^# (.+)$")
 
@@ -22,11 +27,33 @@
   [^String md]
   (str/replace md md-h1-pattern ""))
 
+(def extensions
+  [(AutolinkExtension/create)
+   (HeadingAnchorExtension/create)
+   (StrikethroughExtension/create)
+   (TablesExtension/create)])
+
+(def parser-cache (atom nil))
+(def renderer-cache (atom nil))
+
+(defn- parser
+  []
+  (or @parser-cache
+      (reset! parser-cache (-> (Parser/builder)
+                               (.extensions extensions)
+                               (.build)))))
+
+(defn- renderer
+  []
+  (or @renderer-cache
+      (reset! renderer-cache (-> (HtmlRenderer/builder)
+                                 (.extensions extensions)
+                                 (.build)))))
+
 (defn- markdown->html
   [md]
-  (let [res (shell/sh "pandoc" "--from=gfm" "--to=html4" :in md)]
-    ;; TODO: Handle errors! Check the results! :facepalm:
-    (:out res)))
+  (->> (.parse (parser) md)
+       (.render (renderer))))
 
 (defn prep-content
   [md]
