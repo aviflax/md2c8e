@@ -3,7 +3,8 @@
             [clojure.walk :as walk]
             [md2c8e.confluence :as c8e]
             [md2c8e.markdown :as md]
-            [md2c8e.paths :as paths]))
+            [md2c8e.paths :as paths])
+  (:import [java.net URI]))
 
 (defn- page?
   [v]
@@ -15,11 +16,28 @@
   (tree-seq page? ::md/children page-tree))
 
 (defn- page-titles-by-path
-  "We use this lookup to resolve links."
-  [page-tree source-dir]
+  "We use this lookup to resolve links.
+  The keys are the paths to each page, normalized from the base-dir.
+  
+  For example:
+  
+  If page-tree has these values:
+     [{::c8e/title \"Avro is wonderful\"
+       ::md/source {::md/fp \"/home/root/projects/docs/architecture/techs/avro.md\"}}
+      
+      {::c8e/title \"Our Connector Service\"
+       ::md/source {::md/fp \"/home/root/projects/docs/architecture/systems/connector.md\"}}]
+
+  and base-dir is \"/home/root/projects/docs/architecture\"
+
+  the output would be:
+  
+  {(Path \"techs/avro.md\")        \"Avro is wonderful\"
+   (Path \"systems/connector.md\") \"Our Connector Service\"}"
+  [page-tree base-dir]
   (->> (page-seq page-tree)
        (filter ::md/source)
-       (map (fn [page] (vector (paths/relative-path source-dir (get-in page [::md/source ::md/fp]))
+       (map (fn [page] (vector (paths/relative-path base-dir (get-in page [::md/source ::md/fp]))
                                (::c8e/title page))))
        (into {})))
 
@@ -34,7 +52,19 @@
       (.normalize)
       (->> (.relativize base))))
 
-(defn- link->confluence
+(def href-pattern
+  "Extracts the URL from an HTML link."
+  #"href=\"(.+)\"")
+
+(defn- has-scheme?
+  "We don’t want to even try to replace links that start with a scheme, such as http, mailto, etc."
+  [html]
+  (some? (some-> (re-find href-pattern html)
+                 (second)
+                 (URI.)
+                 (.getScheme))))
+
+(defn- link->c8e
   "Given an HTML link such as <a href='url'>text</a> returns a Confluence link such as:
    <ac:link>
    <ri:page ri:content-title='Page Title' />
@@ -48,31 +78,42 @@
    Passes the href values to `resolve-link` to replace the relative URLs with Confluence page
    titles."
   [html sfp base-path lookup]
-    (let [href (some-> (re-find #"href=\"(.+)\"" html) second)
+  (if (has-scheme? html)
+    html
+    (let [href (some-> (re-find href-pattern html) second)
           body (some-> (re-find #">(.+)<" html) second)
           resolved (resolve-link href sfp base-path)
           target-title (get lookup resolved)]
       (if-not target-title
-        html ;; TODO: this is basically just silently failing, which BTW is bad.
+        (do (println (format "| %s | %s |" (paths/relative-path base-path sfp) href))
+            html)
         (format "<ac:link>
                  <ri:page ri:content-title=\"%s\" />
                  <ac:plain-text-link-body>
                   <![CDATA[%s]]>
                  </ac:plain-text-link-body>
-                 </ac:link>" target-title body))))
+                 </ac:link>" target-title body)))))
+
+(def link-pattern
+  ;; Might want try https://github.com/lambdaisland/regal at some point
+  #"<a[^>]+>.*?</a>")
+
+(defn- replace-body-links
+  [body sfp base-path lookup]
+  (str/replace body link-pattern (fn [link] (link->c8e link sfp base-path lookup))))
 
 (defn replace-links
-  [page-tree source-dir]
-  (let [lookup (page-titles-by-path page-tree source-dir)
-        base-path (paths/path source-dir)]
+  [page-tree base-dir]
+  (let [lookup (page-titles-by-path page-tree base-dir)
+        base-path (paths/path base-dir)]
+    (println (str "🚨 Failed link replacements:\n\n"
+                  "| File | Link |\n"
+                  "| ---- | ---- |"))
     (walk/postwalk
       (fn [v]
-        (if-not (and (page? v) (::c8e/body v))
-          v
-          (let [sfp (get-in v [::md/source ::md/fp])]
-            (println "Processing:" (::c8e/title v))
-            (update v ::c8e/body (fn [body]
-                                          (str/replace body
-                                                       #"<a.+</a>"
-                                                       #(link->confluence % sfp base-path lookup)))))))
+        (if-let [sfp (and (page? v)
+                          (::c8e/body v)
+                          (get-in v [::md/source ::md/fp]))]
+          (update v ::c8e/body #(replace-body-links % sfp base-path lookup))
+          v))
       page-tree)))
