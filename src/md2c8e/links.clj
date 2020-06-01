@@ -16,11 +16,28 @@
   (tree-seq page? ::md/children page-tree))
 
 (defn- page-titles-by-path
-  "We use this lookup to resolve links."
-  [page-tree source-dir]
+  "We use this lookup to resolve links.
+  The keys are the paths to each page, normalized from the base-dir.
+  
+  For example:
+  
+  If page-tree has these values:
+     [{::c8e/title \"Avro is wonderful\"
+       ::md/source {::md/fp \"/home/root/projects/docs/architecture/techs/avro.md\"}}
+      
+      {::c8e/title \"Our Connector Service\"
+       ::md/source {::md/fp \"/home/root/projects/docs/architecture/systems/connector.md\"}}]
+
+  and base-dir is \"/home/root/projects/docs/architecture\"
+
+  the output would be:
+  
+  {(Path \"techs/avro.md\")        \"Avro is wonderful\"
+   (Path \"systems/connector.md\") \"Our Connector Service\"}"
+  [page-tree base-dir]
   (->> (page-seq page-tree)
        (filter ::md/source)
-       (map (fn [page] (vector (paths/relative-path source-dir (get-in page [::md/source ::md/fp]))
+       (map (fn [page] (vector (paths/relative-path base-dir (get-in page [::md/source ::md/fp]))
                                (::c8e/title page))))
        (into {})))
 
@@ -86,9 +103,9 @@
   (str/replace body link-pattern (fn [link] (link->c8e link sfp base-path lookup))))
 
 (defn replace-links
-  [page-tree source-dir]
-  (let [lookup (page-titles-by-path page-tree source-dir)
-        base-path (paths/path source-dir)]
+  [page-tree base-dir]
+  (let [lookup (page-titles-by-path page-tree base-dir)
+        base-path (paths/path base-dir)]
     (println (str "🚨 Failed link replacements:\n\n"
                   "| File | Link |\n"
                   "| ---- | ---- |"))
