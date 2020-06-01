@@ -68,7 +68,8 @@
           resolved (resolve-link href sfp base-path)
           target-title (get lookup resolved)]
       (if-not target-title
-        html ;; TODO: this is basically just silently failing, which BTW is bad.
+        (do (println (format "| %s | %s |" (paths/relative-path base-path sfp) href))
+            html)
         (format "<ac:link>
                  <ri:page ri:content-title=\"%s\" />
                  <ac:plain-text-link-body>
@@ -88,9 +89,14 @@
   [page-tree source-dir]
   (let [lookup (page-titles-by-path page-tree source-dir)
         base-path (paths/path source-dir)]
+    (println (str "🚨 Failed link replacements:\n\n"
+                  "| File | Link |\n"
+                  "| ---- | ---- |"))
     (walk/postwalk
       (fn [v]
-        (if-let [sfp (and (page? v) (::c8e/body v) (get-in v [::md/source ::md/fp]))]
+        (if-let [sfp (and (page? v)
+                          (::c8e/body v)
+                          (get-in v [::md/source ::md/fp]))]
           (update v ::c8e/body #(replace-body-links % sfp base-path lookup))
           v))
       page-tree)))
