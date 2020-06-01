@@ -33,27 +33,20 @@
    (StrikethroughExtension/create)
    (TablesExtension/create)])
 
-(def parser-cache (atom nil))
-(def renderer-cache (atom nil))
+(def parser
+  (-> (Parser/builder)
+      (.extensions extensions)
+      (.build)))
 
-(defn- parser
-  []
-  (or @parser-cache
-      (reset! parser-cache (-> (Parser/builder)
-                               (.extensions extensions)
-                               (.build)))))
-
-(defn- renderer
-  []
-  (or @renderer-cache
-      (reset! renderer-cache (-> (HtmlRenderer/builder)
-                                 (.extensions extensions)
-                                 (.build)))))
+(def renderer
+  (-> (HtmlRenderer/builder)
+      (.extensions extensions)
+      (.build)))
 
 (defn- markdown->html
   [md]
-  (->> (.parse (parser) md)
-       (.render (renderer))))
+  (->> (.parse parser md)
+       (.render renderer)))
 
 (defn prep-content
   [md]

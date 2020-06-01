@@ -29,6 +29,9 @@
     "<ac:random>Some “random” “custom” tags</ac:random>\n"
     "<ac:random>Some “random” “custom” tags</ac:random>"
     
+    "<section><ac:random>Some “random” “custom” tags</ac:random></section>\n"
+    "<section><ac:random>Some “random” “custom” tags</ac:random></section>"
+    
     "<ac:structured-macro ac:name=\"include\"
                           ac:schema-version=\"1\"
                           ac:macro-id=\"fbad7a5b-35fa-4d13-87ed-953ffd4dc456\">
