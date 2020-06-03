@@ -4,7 +4,7 @@ jobs:
   Kaocha:
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-18.04]
+        os: [macos-10.15, ubuntu-18.04]
         java: [11, 13, 14]
         suite: [examples] # Our other suites (integration, properties) are empty — for now!
     runs-on: ${{ matrix.os }}
