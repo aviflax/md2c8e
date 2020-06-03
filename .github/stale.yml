@@ -1,0 +1,29 @@
+# See https://probot.github.io/apps/stale/
+
+# Number of days of inactivity before an issue becomes stale
+# NOTE: if you change this, update the message in markComment below
+daysUntilStale: 30
+
+# Number of days of inactivity before a stale issue is closed
+# NOTE: if you change this, update the message in markComment below
+daysUntilClose: 10
+
+# Issues with these labels will never be considered stale
+# NOTE: if you change this, update the message in markComment below
+exemptLabels:
+  - backlog
+  - pinned
+  - security
+
+# Label to use when marking an issue as stale
+staleLabel: stale
+
+# Comment to post when marking an issue as stale. Set to `false` to disable
+markComment: >-
+  I’ve marked this issue/PR as stale because it has had no activity for 30+ days. I’ll close it in
+  10 days if no further activity occurs before then. Thank you for your contributions.
+
+  (I’ll never touch an issue/PR in this repo that is labeled `backlog`, `pinned`, or `security`.)
+
+# Comment to post when closing a stale issue. Set to `false` to disable
+closeComment: false
