@@ -21,6 +21,28 @@ idea for you to try using this tool.
 * [Developing and Testing][dev-and-test]
 
 
+## Basic Usage
+
+The tool can be invoked like so:
+
+```shell
+clojure -Sdeps '{:deps {md2c8e {:git/url "https://github.com/FundingCircle/md2c8e" :sha "..."}}}' \
+        -m md2c8e.cli \
+        publish \
+        --source-dir <path-to-source-dir> \
+        --root-page-id <int> \
+        --site-root-url <url> \
+        --username <str> \
+        --password <str>
+```
+
+**NB:** make sure you replace the value of `:sha` (the `...`) with the SHA of the tip of the branch
+`master` of this repo.
+
+Does that seem kinda janky? Yeah, we know. We’ll get around to providing native executable binaries
+soon.
+
+
 ## Origin story
 
 This tool was created by the Architecture team at [Funding Circle][fc-gh]. The team was authoring
