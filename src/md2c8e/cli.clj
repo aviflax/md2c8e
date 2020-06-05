@@ -1,6 +1,7 @@
 (ns md2c8e.cli
   (:require [cli-matic.core :refer [run-cmd]]
             [clojure.java.io :as io :refer [file]]
+            [clojure.main :as cm]
             [cognitect.anomalies :as anom]
             [md2c8e.anomalies :refer [anom]]
             [md2c8e.confluence :as c8e :refer [make-client]]
@@ -35,11 +36,19 @@
   [{:keys [source-dir root-page-id site-root-url username password]}]
   (let [client (make-client site-root-url username password)
         threads 10] ;; TODO: Make threads a command-line option
-    (-> (dir->page-tree (file source-dir) root-page-id)
-        (replace-links source-dir)
-        ; (validate)
-        (publish client threads)
-        (summarize source-dir))))
+    (as-> (dir->page-tree (file source-dir) root-page-id) pt
+          (replace-links pt source-dir)
+          ; (validate pt)
+          (publish pt client threads)
+          (try
+            (summarize pt source-dir)
+            ; I think it’s sensible to consider `summarize` semi-optional, to the degree that if it
+            ; fails, the program’s exit code should probably still be zero. That said, I’d still
+            ; like to fix this specific IllegalArgumentException that I saw “in the wild” today:
+            ; https://github.com/FundingCircle/md2c8e/issues/43
+            (catch IllegalArgumentException e
+              (println "Publishing succeeded, but an error occurred while summarizing the results")
+              (println (cm/err->msg e)))))))
 
 (def config
   ;; The spec for this is here: https://github.com/l3nz/cli-matic/blob/master/README.md
